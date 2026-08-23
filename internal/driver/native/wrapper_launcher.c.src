@@ -1,0 +1,51 @@
+#include <unistd.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <limits.h>
+#include <libgen.h>
+#include <mach-o/dyld.h>
+
+int main(int argc, char *argv[]) {
+    char path[PATH_MAX];
+    uint32_t size = sizeof(path);
+    if (_NSGetExecutablePath(path, &size) != 0) {
+        return 1;
+    }
+    
+    // Resolve directory of current binary
+    char dir_buf[PATH_MAX];
+    strncpy(dir_buf, path, sizeof(dir_buf));
+    char *dir = dirname(dir_buf);
+    
+    // Set DYLD_INSERT_LIBRARIES to point to libfonthook.dylib
+    char dylib_path[PATH_MAX];
+    snprintf(dylib_path, sizeof(dylib_path), "%s/libfonthook.dylib", dir);
+    setenv("DYLD_INSERT_LIBRARIES", dylib_path, 1);
+    
+    // Find executable name
+    char base_buf[PATH_MAX];
+    strncpy(base_buf, path, sizeof(base_buf));
+    char *base = basename(base_buf);
+    
+    char orig_exe[PATH_MAX];
+    size_t base_len = strlen(base);
+    
+    // Strategy B: If launcher name ends with "Launcher" (e.g. WhatsAppLauncher),
+    // execute the original binary without "Launcher" directly.
+    if (base_len > 8 && strcmp(base + base_len - 8, "Launcher") == 0) {
+        char real_name[PATH_MAX];
+        strncpy(real_name, base, base_len - 8);
+        real_name[base_len - 8] = '\0';
+        snprintf(orig_exe, sizeof(orig_exe), "%s/%s", dir, real_name);
+    } else {
+        // Strategy A: Standard backup mode (e.g. AppName -> AppName.orig)
+        snprintf(orig_exe, sizeof(orig_exe), "%s/%s.orig", dir, base);
+    }
+    
+    // Execute original binary, forwarding all arguments
+    execv(orig_exe, argv);
+    
+    perror("execv failed executing original binary");
+    return 1;
+}

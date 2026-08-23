@@ -1,0 +1,147 @@
+#import <CoreText/CoreText.h>
+#import <Foundation/Foundation.h>
+#import <stdio.h>
+#import <unistd.h>
+#import <stdlib.h>
+
+#ifndef TARGET_FONT_NAME
+#define TARGET_FONT_NAME "Maple Mono Normal NF"
+#endif
+
+// Exported symbol allowing better-fonts CLI to detect the active font embedded in the dylib
+__attribute__((visibility("default")))
+const char *better_fonts_injected_font_name = TARGET_FONT_NAME;
+
+// Macro for interposing on macOS
+#define DYLD_INTERPOSE(_replacement,_original) \
+   __attribute__((used)) static const struct{ const void* replacement; const void* original; } _interpose_##_original \
+   __attribute__((section("__DATA,__interpose"))) = { (const void*)(unsigned long)&_replacement, (const void*)(unsigned long)&_original }
+
+static void log_msg(const char *format, ...) {
+    const char *debug = getenv("BETTER_FONTS_DEBUG");
+    if (!debug || strcmp(debug, "1") != 0) {
+        return;
+    }
+    FILE *f = fopen("/tmp/better-fonts-hook.log", "a");
+    if (f != NULL) {
+        va_list args;
+        va_start(args, format);
+        fprintf(f, "[PID %d] ", getpid());
+        vfprintf(f, format, args);
+        fprintf(f, "\n");
+        va_end(args);
+        fclose(f);
+    }
+}
+
+__attribute__((constructor))
+static void init_fonthook() {
+    log_msg("--- better-fonts Native CoreText Interposition Hook Loaded ---");
+}
+
+static NSString *get_configured_font() {
+    const char *envFont = getenv("BETTER_FONTS_NAME");
+    if (envFont && strlen(envFont) > 0) {
+        return [NSString stringWithUTF8String:envFont];
+    }
+    return [NSString stringWithUTF8String:TARGET_FONT_NAME];
+}
+
+// Check if a font family name is one of our targets to override
+static BOOL should_override_font(NSString *fontName, CFStringRef *targetFontOut) {
+    if (fontName == nil) return NO;
+    
+    // Protect Apple private system fonts starting with a dot
+    if ([fontName hasPrefix:@"."]) {
+        return NO;
+    }
+    
+    // Blacklist check to prevent breaking custom icon and emoji fonts
+    if ([fontName isEqualToString:@"Apple Color Emoji"] || 
+        [fontName containsString:@"Icons"] || 
+        [fontName containsString:@"Symbols"] ||
+        [fontName containsString:@"FontAwesome"] ||
+        [fontName containsString:@"Material"]) {
+        return NO;
+    }
+    
+    NSString *baseTarget = get_configured_font();
+    NSString *target = baseTarget;
+    
+    // Check if the requested font style is bold, medium, black, or extra
+    if ([fontName containsString:@"Bold"] || 
+        [fontName containsString:@"Medium"] || 
+        [fontName containsString:@"Heavy"] || 
+        [fontName containsString:@"Semibold"] || 
+        [fontName containsString:@"Black"] || 
+        [fontName containsString:@"Bla"] || 
+        [fontName containsString:@"Ext"]) {
+        // If Maple Mono, use MapleMonoNormal-NF-Bold or target + "-Bold"
+        if ([baseTarget isEqualToString:@"Maple Mono Normal NF"]) {
+            target = @"MapleMonoNormal-NF-Bold";
+        } else {
+            target = [NSString stringWithFormat:@"%@-Bold", baseTarget];
+        }
+    }
+    
+    if (targetFontOut != NULL) {
+        *targetFontOut = (__bridge CFStringRef)target;
+    }
+    return YES;
+}
+
+// Replacement for CTFontCreateWithName
+static CTFontRef my_CTFontCreateWithName(CFStringRef name, CGFloat size, const CGAffineTransform *matrix) {
+    if (size <= 0.0) {
+        return CTFontCreateWithName(name, size, matrix);
+    }
+    if (name != NULL) {
+        NSString *fontName = (__bridge NSString *)name;
+        log_msg("CTFontCreateWithName: %s, size: %.1f", [fontName UTF8String], size);
+        
+        CFStringRef targetFont = NULL;
+        if (should_override_font(fontName, &targetFont)) {
+            log_msg("  -> Intercepted Name! Forcing to %s", [(__bridge NSString *)targetFont UTF8String]);
+            CTFontRef customFont = CTFontCreateWithName(targetFont, size, matrix);
+            if (customFont != NULL) {
+                return customFont;
+            }
+        }
+    }
+    return CTFontCreateWithName(name, size, matrix);
+}
+
+// Replacement for CTFontCreateWithFontDescriptor
+static CTFontRef my_CTFontCreateWithFontDescriptor(CTFontDescriptorRef descriptor, CGFloat size, const CGAffineTransform *matrix) {
+    if (size <= 0.0) {
+        return CTFontCreateWithFontDescriptor(descriptor, size, matrix);
+    }
+    if (descriptor != NULL) {
+        CFTypeRef familyNameRef = CTFontDescriptorCopyAttribute(descriptor, kCTFontFamilyNameAttribute);
+        if (familyNameRef != NULL) {
+            NSString *fontName = (__bridge NSString *)familyNameRef;
+            log_msg("CTFontCreateWithFontDescriptor: %s, size: %.1f", [fontName UTF8String], size);
+            
+            CFStringRef targetFont = NULL;
+            if (should_override_font(fontName, &targetFont)) {
+                log_msg("  -> Intercepted Descriptor! Forcing to %s", [(__bridge NSString *)targetFont UTF8String]);
+                CTFontDescriptorRef newDesc = CTFontDescriptorCreateWithNameAndSize(targetFont, size);
+                CTFontRef font = NULL;
+                if (newDesc != NULL) {
+                    font = CTFontCreateWithFontDescriptor(newDesc, size, matrix);
+                    CFRelease(newDesc);
+                }
+                CFRelease(familyNameRef);
+                if (font != NULL) {
+                    return font;
+                }
+            } else {
+                CFRelease(familyNameRef);
+            }
+        }
+    }
+    return CTFontCreateWithFontDescriptor(descriptor, size, matrix);
+}
+
+DYLD_INTERPOSE(my_CTFontCreateWithName, CTFontCreateWithName);
+DYLD_INTERPOSE(my_CTFontCreateWithFontDescriptor, CTFontCreateWithFontDescriptor);

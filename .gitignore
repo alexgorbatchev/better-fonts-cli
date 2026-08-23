@@ -1,0 +1,13 @@
+# Compiled binaries
+/bin/
+
+# Temporary and test artifacts
+.tmp/
+*.test
+*.out
+*.prof
+
+# IDE and OS files
+.DS_Store
+.idea/
+.vscode/
