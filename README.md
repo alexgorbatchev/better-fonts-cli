@@ -31,6 +31,30 @@
 
 *Custom applications can also be declared in `config.toml` or patched on demand.*
 
+## How It Works
+
+For everyday users, `better-fonts` makes font customization on macOS effortless and reversible:
+
+1. **Detects the App Type**: Identifies whether the target application is built using web technology (like Slack, Signal, or Paseo) or as a native desktop program (like Rekordbox, Engine DJ, or Telegram).
+2. **Injects Your Chosen Font**: Seamlessly instructs the application to render its text using your preferred font instead of the hardcoded system default.
+3. **Safe and Reversible**: Makes changes in an isolated temporary staging area with automatic backups, allowing you to switch fonts at any time or restore the factory original with a single `better-fonts unpatch` command.
+
+## How It Really Works
+
+For developers and technical users, `better-fonts` operates via two distinct engine drivers tailored to macOS app architectures:
+
+### 1. Electron Strategy (`electron`)
+
+- **In-Memory ASAR Manipulation**: Parses the 16-byte header and JSON directory tree of the application's `app.asar` archive directly in Go. It locates the application preload script (such as `preload.bundle.js` or `dist/preload.js`), strips any existing patch markers, and injects a `DOMContentLoaded` event listener that attaches a global CSS style rule (`* { font-family: "<font>", monospace !important; }`). The ASAR is repacked in-place, preserving `.unpacked` native modules (`.node`, `.dylib`, `.wasm`) without needing to extract files to disk.
+- **Pure Go Fuse Toggling**: Scans the `Electron Framework` Mach-O binary for the sentinel byte sequence `dL7pKGdnNz796PbbjQWNKmHXBZaB9tsX` and modifies the `EnableEmbeddedAsarIntegrityValidation` fuse wire byte directly to `'0'` (`DISABLE`), eliminating ASAR integrity checksum verification crashes without external Node.js dependencies.
+- **Bundle Re-Signing**: Re-signs the modified bundle with an ad-hoc signature via `codesign --force --deep --sign -`.
+
+### 2. Native CoreText Hook Strategy (`native-hook`)
+
+- **CoreText Interposition (`DYLD_INTERPOSE`)**: Dynamically compiles an Objective-C library (`libfonthook.dylib`) using `clang` that interposes low-level macOS `CoreText` creation routines (`CTFontCreateWithName` and `CTFontCreateWithFontDescriptor`). When the target app requests fonts, the hook redirects the request to your configured font (with automatic variant mapping for Bold, Heavy, and Semibold weights) while explicitly passing through Apple private system fonts (prefixed with `.`) and symbol/emoji icon sets.
+- **Launcher Binary Substitution**: Renames the original Mach-O executable to `<binary>.orig` and substitutes a compiled C wrapper launcher (`wrapper_launcher`). When executed by macOS, the launcher discovers its directory via `_NSGetExecutablePath`, sets `DYLD_INSERT_LIBRARIES=libfonthook.dylib`, and calls `execv` on the original binary, passing through all process arguments and environment variables.
+- **Bundle Re-Signing**: Re-signs the modified `.app` bundle with `codesign --force --deep --sign -`.
+
 ## Prerequisites
 
 - **macOS** (Apple Silicon or Intel)
