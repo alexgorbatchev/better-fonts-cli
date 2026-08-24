@@ -58,10 +58,10 @@ For developers and technical users, `better-fonts` operates via two distinct eng
 ## Prerequisites
 
 - **macOS** (Apple Silicon or Intel)
-- **Built-in macOS System Tools** (pre-installed on every Mac): [`codesign`](https://keith.github.io/xcode-man-pages/codesign.1.html), [`osascript`](https://keith.github.io/xcode-man-pages/osascript.1.html), [`open`](https://keith.github.io/xcode-man-pages/open.1.html), and [`plutil`](https://keith.github.io/xcode-man-pages/plutil.1.html)
-- **[Xcode Command Line Tools](https://developer.apple.com/xcode/resources/) (`clang`)** — *only required when patching Native apps like Rekordbox or Telegram* (install with `xcode-select --install`)
+- **Built-in macOS System Tools** (pre-installed on every single Mac out of the box with zero setup required): [`codesign`](https://keith.github.io/xcode-man-pages/codesign.1.html), [`osascript`](https://keith.github.io/xcode-man-pages/osascript.1.html), [`open`](https://keith.github.io/xcode-man-pages/open.1.html), and [`plutil`](https://keith.github.io/xcode-man-pages/plutil.1.html)
+- **[Xcode Command Line Tools](https://developer.apple.com/xcode/resources/) (`clang`)** — *only required when patching Native apps like Rekordbox, Engine DJ, or Telegram* (install with `xcode-select --install`)
 
-*Note: For Electron applications (Slack, Signal, Paseo), `better-fonts` is completely self-contained with a native ASAR parser and native Electron fuse manipulator in Go. Node.js, Bun, and npm are **not** required.*
+*Note: For Electron applications (Slack, Signal, Paseo), `better-fonts` is completely self-contained with a native ASAR parser and native Electron fuse manipulator in Go. It works immediately out of the box with zero external dependencies—Node.js, Bun, and npm are **not** required.*
 
 ## Installation
 
