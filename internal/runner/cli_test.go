@@ -193,6 +193,28 @@ func TestPatchWithCustomAppPath(t *testing.T) {
 	if !strings.Contains(buf.String(), "FakeApp") {
 		t.Fatalf("expected output to mention FakeApp: %s", buf.String())
 	}
+
+	// Unpatch when app is already unpatched (real execution on clean app)
+	cmd = NewRootCommand("dev")
+	buf.Reset()
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs([]string{"unpatch", appPath})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unpatch clean app failed: %v", err)
+	}
+	if !strings.Contains(buf.String(), "already in its clean unpatched state") {
+		t.Fatalf("expected already clean state message, got %s", buf.String())
+	}
+
+	// Unpatch when app is not installed
+	missingAppPath := filepath.Join(tempDir, "MissingApp.app")
+	cmd = NewRootCommand("dev")
+	buf.Reset()
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs([]string{"unpatch", missingAppPath})
+	_ = cmd.Execute()
 }
 
 func TestConfigSubcommands(t *testing.T) {

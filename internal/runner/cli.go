@@ -216,6 +216,12 @@ arbitrary macOS application path (e.g. 'better-fonts patch /Applications/SomeApp
 			}
 
 			for _, target := range targets {
+				st := target.Status()
+				if !st.Installed && !flags.DryRun {
+					fmt.Fprintf(cmd.OutOrStdout(), "%s (%s) is not installed.\n", target.Name, target.AppPath)
+					continue
+				}
+
 				font := cfg.EffectiveFont(target.ID)
 				restart := cfg.EffectiveRestart(target.ID)
 
@@ -267,6 +273,16 @@ Supports built-in apps or any arbitrary macOS application path.`,
 			}
 
 			for _, target := range targets {
+				st := target.Status()
+				if !st.Installed && !flags.DryRun {
+					fmt.Fprintf(cmd.OutOrStdout(), "%s (%s) is not installed.\n", target.Name, target.AppPath)
+					continue
+				}
+				if !st.Patched && !flags.DryRun {
+					fmt.Fprintf(cmd.OutOrStdout(), "%s (%s) is already in its clean unpatched state.\n", target.Name, target.AppPath)
+					continue
+				}
+
 				restart := cfg.EffectiveRestart(target.ID)
 
 				fmt.Fprintf(cmd.OutOrStdout(), "Unpatching %s [%s] (%s)...\n", target.Name, target.Driver, target.AppPath)
