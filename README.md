@@ -2,6 +2,10 @@
 
 `better-fonts` is a modular, configurable macOS command-line tool for patching and unpatching Electron and Native macOS applications to use custom fonts.
 
+![Engine DJ with custom font](screenshots/engine-dj.png)
+
+![Rekordbox with custom font](screenshots/rekordbox.png)
+
 ## What It Does
 
 - **Dual-Driver Architecture**: Supports both **Electron** apps (via preload script CSS injection) and **Native Cocoa / Qt / C++** apps (via `DYLD_INTERPOSE` CoreText hooking).
