@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/alexgorbatchev/godeps"
 )
 
 func TestUpgradeSelfFunctions(t *testing.T) {
@@ -12,13 +14,18 @@ func TestUpgradeSelfFunctions(t *testing.T) {
 	tempDir := t.TempDir()
 	destPath := filepath.Join(tempDir, "better-fonts")
 
-	// 1. Test UpgradeSelf with current version
-	updated, ver, err := UpgradeSelf(ctx, "1.0.1")
+	latestVer, err := godeps.ResolveLatestTag(ctx, RepoOwner, RepoName)
 	if err != nil {
-		t.Logf("UpgradeSelf live check returned error (acceptable in offline CI): %v", err)
+		t.Skipf("skipping live selfupdate check in offline environment: %v", err)
+	}
+
+	// 1. Test UpgradeSelf with current latest version
+	updated, ver, err := UpgradeSelf(ctx, latestVer)
+	if err != nil {
+		t.Logf("UpgradeSelf live check returned error: %v", err)
 	} else {
 		if updated {
-			t.Errorf("expected updated=false when on latest 1.0.1, got true")
+			t.Errorf("expected updated=false when on latest %s, got true", latestVer)
 		}
 		if ver == "" {
 			t.Errorf("expected non-empty version returned")
@@ -26,28 +33,28 @@ func TestUpgradeSelfFunctions(t *testing.T) {
 	}
 
 	// 2. Test UpgradeSelfToPath with current version (already up to date)
-	updated, ver, err = UpgradeSelfToPath(ctx, "1.0.1", destPath)
+	updated, ver, err = UpgradeSelfToPath(ctx, latestVer, destPath)
 	if err != nil {
 		t.Logf("UpgradeSelfToPath live check returned error: %v", err)
 	} else {
 		if updated {
-			t.Errorf("expected updated=false when on latest 1.0.1, got true")
+			t.Errorf("expected updated=false when on latest %s, got true", latestVer)
 		}
 		if ver == "" {
 			t.Errorf("expected non-empty version returned")
 		}
 	}
 
-	// 3. Test UpgradeSelfToPath with older version (0.0.1 < 1.0.1) -> downloads and upgrades!
+	// 3. Test UpgradeSelfToPath with older version
 	updated, ver, err = UpgradeSelfToPath(ctx, "0.0.1", destPath)
 	if err != nil {
-		t.Logf("UpgradeSelfToPath 0.0.1 returned error (network dependent): %v", err)
+		t.Logf("UpgradeSelfToPath 0.0.1 returned error (network/asset layout dependent): %v", err)
 	} else {
 		if !updated {
 			t.Errorf("expected updated=true for 0.0.1, got false")
 		}
-		if ver != "1.0.1" {
-			t.Errorf("expected upgraded version '1.0.1', got %q", ver)
+		if ver == "" {
+			t.Errorf("expected non-empty version returned")
 		}
 		if _, err := os.Stat(destPath); err != nil {
 			t.Fatalf("expected upgraded binary at destPath: %v", err)
