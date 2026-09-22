@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/alexgorbatchev/better-fonts/internal/asar"
 	"github.com/alexgorbatchev/better-fonts/internal/config"
@@ -233,8 +234,7 @@ func (a *App) applyTransformation(opts PatchOptions, transform func([]byte) ([]b
 	}
 
 	// Replace original app bundle safely
-	backupPath := a.AppPath + ".better-fonts-backup"
-	_ = os.RemoveAll(backupPath)
+	backupPath := fmt.Sprintf("%s.backup-%d", a.AppPath, time.Now().UnixNano())
 	if err := os.Rename(a.AppPath, backupPath); err != nil {
 		return fmt.Errorf("backing up %s: %w", a.AppPath, err)
 	}
