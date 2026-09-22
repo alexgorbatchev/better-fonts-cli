@@ -16,15 +16,27 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// GlobalFlags represents root persistent flags that apply across all commands.
 type GlobalFlags struct {
 	ConfigFile string
-	Font       string
-	Apps       []string
-	Driver     string
-	Restart    bool
-	NoRestart  bool
-	DryRun     bool
 	Verbose    bool
+}
+
+// PatchFlags represents flags specific to the patch command.
+type PatchFlags struct {
+	Font      string
+	Driver    string
+	Restart   bool
+	NoRestart bool
+	DryRun    bool
+}
+
+// UnpatchFlags represents flags specific to the unpatch command.
+type UnpatchFlags struct {
+	Driver    string
+	Restart   bool
+	NoRestart bool
+	DryRun    bool
 }
 
 // NewRootCommand constructs the Cobra command tree for better-fonts.
@@ -61,12 +73,6 @@ or any arbitrary .app bundle) with custom fonts.`,
 
 	pflags := rootCmd.PersistentFlags()
 	pflags.StringVarP(&flags.ConfigFile, "config", "c", "", "path to config.toml (default $XDG_CONFIG_HOME/better-fonts/config.toml)")
-	pflags.StringVarP(&flags.Font, "font", "f", "", "override font name")
-	pflags.StringSliceVarP(&flags.Apps, "app", "a", nil, "target specific app(s)")
-	pflags.StringVar(&flags.Driver, "driver", "", "override driver ('electron' or 'native-hook')")
-	pflags.BoolVar(&flags.Restart, "restart", true, "restart application after patching/unpatching")
-	pflags.BoolVar(&flags.NoRestart, "no-restart", false, "do not restart application after patching/unpatching")
-	pflags.BoolVar(&flags.DryRun, "dry-run", false, "simulate actions without modifying application files")
 	pflags.BoolVarP(&flags.Verbose, "verbose", "v", false, "enable verbose output")
 
 	rootCmd.AddCommand(newPatchCommand(flags))
@@ -179,18 +185,6 @@ func loadAppConfig(flags *GlobalFlags) (*config.Config, error) {
 		return nil, fmt.Errorf("loading configuration: %w", err)
 	}
 
-	if flags.Font != "" {
-		cfg.Font = flags.Font
-	}
-	if len(flags.Apps) > 0 {
-		cfg.Apps = flags.Apps
-	}
-	if flags.NoRestart {
-		cfg.Restart = false
-	} else if flags.Restart {
-		cfg.Restart = true
-	}
-
 	return cfg, nil
 }
 
@@ -280,7 +274,8 @@ func selectTargetApps(all []app.App, cfg *config.Config, explicitArgs []string, 
 	return targets
 }
 
-func newPatchCommand(flags *GlobalFlags) *cobra.Command {
+func newPatchCommand(global *GlobalFlags) *cobra.Command {
+	flags := &PatchFlags{}
 	cmd := &cobra.Command{
 		Use:   "patch [apps...]",
 		Short: "Patch applications to use the configured font",
@@ -288,9 +283,18 @@ func newPatchCommand(flags *GlobalFlags) *cobra.Command {
 Supports built-in apps (e.g. 'better-fonts patch slack rekordbox telegram') or any
 arbitrary macOS application path (e.g. 'better-fonts patch /Applications/SomeApp.app').`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := loadAppConfig(flags)
+			cfg, err := loadAppConfig(global)
 			if err != nil {
 				return err
+			}
+
+			if flags.Font != "" {
+				cfg.Font = flags.Font
+			}
+			if flags.NoRestart {
+				cfg.Restart = false
+			} else if flags.Restart {
+				cfg.Restart = true
 			}
 
 			allApps := app.GetAllApps(cfg)
@@ -335,19 +339,33 @@ arbitrary macOS application path (e.g. 'better-fonts patch /Applications/SomeApp
 			return nil
 		},
 	}
+
+	cmd.Flags().StringVarP(&flags.Font, "font", "f", "", "override font name")
+	cmd.Flags().StringVar(&flags.Driver, "driver", "", "override driver ('electron' or 'native-hook')")
+	cmd.Flags().BoolVar(&flags.Restart, "restart", true, "restart application after patching")
+	cmd.Flags().BoolVar(&flags.NoRestart, "no-restart", false, "do not restart application after patching")
+	cmd.Flags().BoolVar(&flags.DryRun, "dry-run", false, "simulate actions without modifying application files")
+
 	return cmd
 }
 
-func newUnpatchCommand(flags *GlobalFlags) *cobra.Command {
+func newUnpatchCommand(global *GlobalFlags) *cobra.Command {
+	flags := &UnpatchFlags{}
 	cmd := &cobra.Command{
 		Use:   "unpatch [apps...]",
 		Short: "Remove font patch from applications",
 		Long: `unpatch restores original preload scripts or executables for applications.
 Supports built-in apps or any arbitrary macOS application path.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := loadAppConfig(flags)
+			cfg, err := loadAppConfig(global)
 			if err != nil {
 				return err
+			}
+
+			if flags.NoRestart {
+				cfg.Restart = false
+			} else if flags.Restart {
+				cfg.Restart = true
 			}
 
 			allApps := app.GetAllApps(cfg)
@@ -390,6 +408,12 @@ Supports built-in apps or any arbitrary macOS application path.`,
 			return nil
 		},
 	}
+
+	cmd.Flags().StringVar(&flags.Driver, "driver", "", "override driver ('electron' or 'native-hook')")
+	cmd.Flags().BoolVar(&flags.Restart, "restart", true, "restart application after unpatching")
+	cmd.Flags().BoolVar(&flags.NoRestart, "no-restart", false, "do not restart application after unpatching")
+	cmd.Flags().BoolVar(&flags.DryRun, "dry-run", false, "simulate actions without modifying application files")
+
 	return cmd
 }
 

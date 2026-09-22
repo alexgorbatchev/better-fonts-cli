@@ -71,7 +71,7 @@ func TestPatchAndUnpatchCommands_DryRun(t *testing.T) {
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
-	cmd.SetArgs([]string{"patch", "--config", configPath, "--dry-run", "--font", "CustomFont", "--app", "slack,signal", "--restart"})
+	cmd.SetArgs([]string{"patch", "--config", configPath, "--dry-run", "--font", "CustomFont", "--restart", "slack", "signal"})
 
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("patch dry-run failed: %v", err)
@@ -378,5 +378,66 @@ func TestCobraHelpTreeIntegration(t *testing.T) {
 	}
 	if !strings.Contains(agentOut, "commands:") {
 		t.Fatalf("expected agent mode structured output with 'commands:', got:\n%s", agentOut)
+	}
+}
+
+func TestFlagScopingAndAppRemoval(t *testing.T) {
+	rootCmd := NewRootCommand("dev")
+
+	// 1. --app must NOT exist on root command
+	if flag := rootCmd.PersistentFlags().Lookup("app"); flag != nil {
+		t.Fatalf("expected --app to be removed from root persistent flags, found: %v", flag.Name)
+	}
+	if flag := rootCmd.Flags().Lookup("app"); flag != nil {
+		t.Fatalf("expected --app to be removed from root flags, found: %v", flag.Name)
+	}
+
+	// 2. Execution flags (--font, --driver, --restart, --dry-run) must NOT be root persistent flags
+	for _, name := range []string{"font", "driver", "restart", "no-restart", "dry-run"} {
+		if flag := rootCmd.PersistentFlags().Lookup(name); flag != nil {
+			t.Errorf("expected flag %q NOT to be a root persistent flag", name)
+		}
+	}
+
+	// 3. patch command should have its local execution flags
+	patchCmd, _, err := rootCmd.Find([]string{"patch"})
+	if err != nil {
+		t.Fatalf("failed to find patch command: %v", err)
+	}
+	for _, name := range []string{"font", "driver", "restart", "no-restart", "dry-run"} {
+		if flag := patchCmd.Flags().Lookup(name); flag == nil {
+			t.Errorf("expected local flag %q on patch command", name)
+		}
+	}
+	if flag := patchCmd.Flags().Lookup("app"); flag != nil {
+		t.Errorf("expected --app NOT to exist on patch command")
+	}
+
+	// 4. unpatch command should have driver, restart, dry-run, but NOT font or app
+	unpatchCmd, _, err := rootCmd.Find([]string{"unpatch"})
+	if err != nil {
+		t.Fatalf("failed to find unpatch command: %v", err)
+	}
+	for _, name := range []string{"driver", "restart", "no-restart", "dry-run"} {
+		if flag := unpatchCmd.Flags().Lookup(name); flag == nil {
+			t.Errorf("expected local flag %q on unpatch command", name)
+		}
+	}
+	if flag := unpatchCmd.Flags().Lookup("font"); flag != nil {
+		t.Errorf("expected --font NOT to exist on unpatch command")
+	}
+	if flag := unpatchCmd.Flags().Lookup("app"); flag != nil {
+		t.Errorf("expected --app NOT to exist on unpatch command")
+	}
+
+	// 5. status command must NOT have execution flags
+	statusCmd, _, err := rootCmd.Find([]string{"status"})
+	if err != nil {
+		t.Fatalf("failed to find status command: %v", err)
+	}
+	for _, name := range []string{"font", "driver", "restart", "dry-run", "app"} {
+		if flag := statusCmd.Flags().Lookup(name); flag != nil {
+			t.Errorf("expected flag %q NOT to exist on status command", name)
+		}
 	}
 }
