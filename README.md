@@ -20,14 +20,14 @@
 
 `better-fonts` includes built-in support for:
 
-| Application | Driver | Default Path | Method |
-| :--- | :--- | :--- | :--- |
-| **Paseo** | `electron` | `/Applications/Paseo.app` | Preload CSS (`dist/preload.js`) |
-| **Signal** | `electron` | `/Applications/Signal.app` | Preload CSS (`preload.bundle.js`) |
-| **Slack** | `electron` | `/Applications/Slack.app` | Preload CSS (`dist/preload.bundle.js`) |
-| **Rekordbox** | `native-hook` | `/Applications/rekordbox 7/rekordbox.app` | CoreText Interposition |
-| **Engine DJ** | `native-hook` | `/Applications/Engine DJ.app` | CoreText Interposition |
-| **Telegram** | `native-hook` | `/Applications/Telegram.app` | CoreText Interposition |
+| Application | Driver | Default Path | Method | Verified Version |
+| :--- | :--- | :--- | :--- | :--- |
+| **Paseo** | `electron` | `/Applications/Paseo.app` | Preload CSS (`dist/preload.js`) | — |
+| **Signal** | `electron` | `/Applications/Signal.app` | Preload CSS (`preload.bundle.js`) | — |
+| **Slack** | `electron` | `/Applications/Slack.app` | Preload CSS (`dist/preload.bundle.js`) | `4.52.162` |
+| **Rekordbox** | `native-hook` | `/Applications/rekordbox 7/rekordbox.app` | CoreText Interposition | — |
+| **Engine DJ** | `native-hook` | `/Applications/Engine DJ.app` | CoreText Interposition | — |
+| **Telegram** | `native-hook` | `/Applications/Telegram.app` | CoreText Interposition | — |
 
 *Custom applications can also be declared in `config.toml` or patched on demand.*
 
@@ -46,7 +46,7 @@ For developers and technical users, `better-fonts` operates via two distinct eng
 ### 1. Electron Strategy (`electron`)
 
 - **In-Memory ASAR Manipulation**: Parses the 16-byte header and JSON directory tree of the application's `app.asar` archive directly in Go. It locates the application preload script (such as `preload.bundle.js` or `dist/preload.js`), strips any existing patch markers, and injects a `DOMContentLoaded` event listener that attaches a global CSS style rule (`* { font-family: "<font>", monospace !important; }`). The ASAR is repacked in-place, preserving `.unpacked` native modules (`.node`, `.dylib`, `.wasm`) without needing to extract files to disk.
-- **Pure Go Fuse Toggling**: Scans the `Electron Framework` Mach-O binary for the sentinel byte sequence `dL7pKGdnNz796PbbjQWNKmHXBZaB9tsX` and modifies the `EnableEmbeddedAsarIntegrityValidation` fuse wire byte directly to `'0'` (`DISABLE`), eliminating ASAR integrity checksum verification crashes without external Node.js dependencies.
+- **Pure Go Fuse Toggling**: Scans the `Electron Framework` Mach-O binary across all architecture slices (`x86_64` and `arm64`) for the sentinel byte sequence `dL7pKGdnNz796PbbjQWNKmHXBZaB9tsX` and modifies the `EnableEmbeddedAsarIntegrityValidation` fuse wire byte directly to `'0'` (`DISABLE`), eliminating ASAR integrity checksum verification crashes on both Intel and Apple Silicon without external Node.js dependencies.
 - **Bundle Re-Signing**: Re-signs the modified bundle with an ad-hoc signature via `codesign --force --deep --sign -`.
 
 ### 2. Native CoreText Hook Strategy (`native-hook`)
