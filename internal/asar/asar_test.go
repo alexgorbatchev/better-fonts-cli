@@ -267,3 +267,78 @@ func TestElectronAsarInteroperability(t *testing.T) {
 		t.Fatalf("content mismatch: got %q, want %q", string(docContent), string(files["sub/deep/doc.md"]))
 	}
 }
+
+func TestAsar_EmptyDirectoryAndSymlink(t *testing.T) {
+	tempDir := t.TempDir()
+	asarPath := filepath.Join(tempDir, "special.asar")
+
+	headerJSON := `{"files":{"regular.txt":{"size":5,"offset":"0"},"empty_dir":{},"link_entry":{"link":"regular.txt"}}}`
+	jsonBytes := []byte(headerJSON)
+	jsonLen := uint32(len(jsonBytes))
+	headerPayloadSize := (jsonLen + 8 + 3) & ^uint32(3)
+
+	var headerBuf bytes.Buffer
+	_ = binary.Write(&headerBuf, binary.LittleEndian, uint32(4))
+	_ = binary.Write(&headerBuf, binary.LittleEndian, headerPayloadSize)
+	_ = binary.Write(&headerBuf, binary.LittleEndian, headerPayloadSize-4)
+	_ = binary.Write(&headerBuf, binary.LittleEndian, jsonLen)
+	headerBuf.Write(jsonBytes)
+	padding := int(headerPayloadSize - (jsonLen + 8))
+	if padding > 0 {
+		headerBuf.Write(make([]byte, padding))
+	}
+
+	payload := []byte("hello")
+
+	f, err := os.Create(asarPath)
+	if err != nil {
+		t.Fatalf("create asar: %v", err)
+	}
+	if _, err := f.Write(headerBuf.Bytes()); err != nil {
+		t.Fatalf("write header: %v", err)
+	}
+	if _, err := f.Write(payload); err != nil {
+		t.Fatalf("write payload: %v", err)
+	}
+	_ = f.Close()
+
+	loaded, err := OpenArchive(asarPath)
+	if err != nil {
+		t.Fatalf("OpenArchive failed: %v", err)
+	}
+	defer loaded.Close()
+
+	list := loaded.ListFiles()
+	expectedFiles := []string{"regular.txt"}
+	if len(list) != len(expectedFiles) || list[0] != "regular.txt" {
+		t.Fatalf("ListFiles returned %v, expected %v", list, expectedFiles)
+	}
+
+	savedPath := filepath.Join(tempDir, "saved.asar")
+	if err := loaded.Save(savedPath); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	loadedSaved, err := OpenArchive(savedPath)
+	if err != nil {
+		t.Fatalf("OpenArchive saved failed: %v", err)
+	}
+	defer loadedSaved.Close()
+
+	content, err := loadedSaved.ExtractFile("regular.txt")
+	if err != nil {
+		t.Fatalf("ExtractFile regular.txt failed: %v", err)
+	}
+	if string(content) != "hello" {
+		t.Fatalf("got %q, want %q", string(content), "hello")
+	}
+
+	// Verify empty_dir and link_entry are preserved in header
+	if _, ok := loadedSaved.Header.Files["empty_dir"]; !ok {
+		t.Fatalf("empty_dir not preserved in saved header")
+	}
+	linkEntry, ok := loadedSaved.Header.Files["link_entry"]
+	if !ok || linkEntry.Link != "regular.txt" {
+		t.Fatalf("link_entry not preserved in saved header: %+v", linkEntry)
+	}
+}

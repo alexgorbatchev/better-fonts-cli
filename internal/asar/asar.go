@@ -29,6 +29,21 @@ type Entry struct {
 	Files      map[string]Entry `json:"files,omitempty"`
 }
 
+// IsDir reports whether the entry represents a directory (has children or is an empty directory).
+func (e *Entry) IsDir() bool {
+	return e.Files != nil || (e.Offset == "" && !e.Unpacked && e.Link == "")
+}
+
+// IsLink reports whether the entry represents a symlink.
+func (e *Entry) IsLink() bool {
+	return e.Link != ""
+}
+
+// IsFile reports whether the entry represents a regular file (packed or unpacked).
+func (e *Entry) IsFile() bool {
+	return !e.IsDir() && !e.IsLink()
+}
+
 // Archive represents an in-memory or mapped ASAR archive.
 type Archive struct {
 	Header        Entry
@@ -113,8 +128,11 @@ func (a *Archive) ExtractFile(relPath string) ([]byte, error) {
 		return nil, err
 	}
 
-	if entry.Files != nil {
+	if entry.IsDir() {
 		return nil, fmt.Errorf("path %q is a directory, not a file", relPath)
+	}
+	if entry.IsLink() {
+		return nil, fmt.Errorf("path %q is a symlink, not a regular file", relPath)
 	}
 	if entry.Unpacked {
 		return nil, fmt.Errorf("file %q is unpacked outside asar archive", relPath)
@@ -168,7 +186,7 @@ func collectFiles(entry *Entry, prefix string, list *stringSlice) {
 		}
 		if child.Files != nil {
 			collectFiles(&child, full, list)
-		} else {
+		} else if child.IsFile() {
 			*list = append(*list, full)
 		}
 	}
