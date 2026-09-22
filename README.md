@@ -213,18 +213,43 @@ process_name = "CustomNative"
 
 ## Options & Flags
 
-Global flags apply to all commands:
+### Global Flags
+
+Persistent flags applicable across all commands:
 
 | Flag | Short | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `--config` | `-c` | `~/.config/better-fonts/config.toml` | Custom path to configuration TOML file |
-| `--font` | `-f` | *(from config)* | Override font name |
-| `--app` | `-a` | *(from config)* | Target specific app(s) (e.g. `-a slack,rekordbox`) |
-| `--restart` | | `true` | Restart application after patching or unpatching |
-| `--no-restart` | | `false` | Prevent application restart after operations |
-| `--dry-run` | | `false` | Simulate actions without modifying disk files |
-| `--verbose` | `-v` | `false` | Enable verbose operational logging |
+| `--config` | `-c` | `~/.config/better-fonts/config.toml` | Path to configuration TOML file |
+| `--verbose` | `-v` | `false` | Enable verbose operational output |
 | `--version` | | | Print version string |
+| `--help` | `-h` | | Print command help |
+
+### Command Flags (`patch`)
+
+Flags specific to the `patch` command:
+
+| Flag | Short | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `--font` | `-f` | *(from config)* | Override font name |
+| `--driver` | | *(auto-detected)* | Override driver (`electron` or `native-hook`) |
+| `--restart` | | `true` | Restart application after patching |
+| `--no-restart` | | `false` | Prevent application restart after patching |
+| `--dry-run` | | `false` | Simulate actions without modifying disk files |
+
+Target applications are passed as positional arguments (e.g. `better-fonts patch slack rekordbox`), or default to all configured applications when omitted.
+
+### Command Flags (`unpatch`)
+
+Flags specific to the `unpatch` command:
+
+| Flag | Short | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `--driver` | | *(auto-detected)* | Override driver (`electron` or `native-hook`) |
+| `--restart` | | `true` | Restart application after unpatching |
+| `--no-restart` | | `false` | Prevent application restart after unpatching |
+| `--dry-run` | | `false` | Simulate actions without modifying disk files |
+
+Target applications are passed as positional arguments (e.g. `better-fonts unpatch slack`), or default to all configured applications when omitted.
 
 ## Development
 
