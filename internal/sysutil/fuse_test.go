@@ -76,6 +76,88 @@ func TestNativeElectronFuseDisable(t *testing.T) {
 	}
 }
 
+func TestNativeElectronFuseDisable_UniversalBinary(t *testing.T) {
+	tempDir := t.TempDir()
+	frameworkDir := filepath.Join(tempDir, "Contents", "Frameworks", "Electron Framework.framework")
+	if err := os.MkdirAll(frameworkDir, 0o755); err != nil {
+		t.Fatalf("mkdir framework: %v", err)
+	}
+
+	binaryPath := filepath.Join(frameworkDir, "Electron Framework")
+
+	// Create fake universal binary with two slices (e.g. x86_64 and arm64), each having its own sentinel
+	var fakeBinary bytes.Buffer
+
+	// Slice 1 (e.g. x86_64)
+	fakeBinary.Write(make([]byte, 2048)) // padding
+	fakeBinary.WriteString(FuseSentinel)
+	fakeBinary.WriteByte(1) // version V1
+	fakeBinary.WriteByte(8) // wire length 8
+	fakeBinary.Write([]byte{'0', '1', '0', '0', '1', '1', '0', '1'})
+
+	// Slice 2 (e.g. arm64)
+	fakeBinary.Write(make([]byte, 4096)) // padding between slices
+	fakeBinary.WriteString(FuseSentinel)
+	fakeBinary.WriteByte(1) // version V1
+	fakeBinary.WriteByte(8) // wire length 8
+	fakeBinary.Write([]byte{'0', '1', '0', '0', '1', '1', '0', '1'})
+	fakeBinary.Write(make([]byte, 1024)) // trailing padding
+
+	if err := os.WriteFile(binaryPath, fakeBinary.Bytes(), 0o755); err != nil {
+		t.Fatalf("write fake binary: %v", err)
+	}
+
+	// 1. Initial state: both are enabled, so disabled should be false
+	disabled, err := IsAsarIntegrityDisabled(tempDir)
+	if err != nil {
+		t.Fatalf("IsAsarIntegrityDisabled failed: %v", err)
+	}
+	if disabled {
+		t.Fatalf("expected initial state to be enabled (disabled=false)")
+	}
+
+	// 2. Disable fuse natively in Go
+	if err := DisableIntegrityValidationNative(tempDir); err != nil {
+		t.Fatalf("DisableIntegrityValidationNative failed: %v", err)
+	}
+
+	// 3. Verify that BOTH slices have the fuse disabled
+	content, err := os.ReadFile(binaryPath)
+	if err != nil {
+		t.Fatalf("reading binary: %v", err)
+	}
+
+	sentinelBytes := []byte(FuseSentinel)
+	firstIdx := bytes.Index(content, sentinelBytes)
+	if firstIdx == -1 {
+		t.Fatalf("first sentinel not found")
+	}
+	secondIdx := bytes.Index(content[firstIdx+len(sentinelBytes):], sentinelBytes)
+	if secondIdx == -1 {
+		t.Fatalf("second sentinel not found")
+	}
+	secondOffset := firstIdx + len(sentinelBytes) + secondIdx
+
+	firstFuse := content[firstIdx+len(FuseSentinel)+2+4]
+	if firstFuse != '0' {
+		t.Errorf("expected first slice fuse byte '0', got %c (0x%02x)", firstFuse, firstFuse)
+	}
+
+	secondFuse := content[secondOffset+len(FuseSentinel)+2+4]
+	if secondFuse != '0' {
+		t.Errorf("expected second slice fuse byte '0', got %c (0x%02x)", secondFuse, secondFuse)
+	}
+
+	// 4. Check fuse state after disable - should report disabled ONLY if both are disabled
+	disabledAfter, err := IsAsarIntegrityDisabled(tempDir)
+	if err != nil {
+		t.Fatalf("IsAsarIntegrityDisabled after disable failed: %v", err)
+	}
+	if !disabledAfter {
+		t.Fatalf("expected state to be disabled across all architectures (disabled=true)")
+	}
+}
+
 func TestFuse_LargeBinarySearch(t *testing.T) {
 	tempDir := t.TempDir()
 	frameworkDir := filepath.Join(tempDir, "Contents", "Frameworks", "Electron Framework.framework")
