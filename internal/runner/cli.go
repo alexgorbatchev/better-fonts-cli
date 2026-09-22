@@ -12,6 +12,7 @@ import (
 	"github.com/alexgorbatchev/better-fonts/internal/config"
 	"github.com/alexgorbatchev/better-fonts/internal/selfupdate"
 	"github.com/alexgorbatchev/better-fonts/internal/sysutil"
+	cobrahelptree "github.com/alexgorbatchev/cobra-help-tree/v2"
 	"github.com/spf13/cobra"
 )
 
@@ -75,7 +76,92 @@ or any arbitrary .app bundle) with custom fonts.`,
 	rootCmd.AddCommand(newConfigCommand(flags))
 	rootCmd.AddCommand(newUpgradeCommand(version))
 
+	if err := cobrahelptree.SetupWithOptions(rootCmd, cobrahelptree.HelpOptions{
+		Catalog: BuildTechCatalog(),
+		Tree: cobrahelptree.TreeOptions{
+			HideGeneratedCommands: true,
+		},
+	}); err != nil {
+		panic(fmt.Sprintf("setting up help tree: %v", err))
+	}
+
 	return rootCmd
+}
+
+// BuildTechCatalog constructs the command metadata and argument specifications for cobra-help-tree.
+func BuildTechCatalog() cobrahelptree.TechCatalog {
+	return cobrahelptree.TechCatalog{
+		"better-fonts": {
+			Summary:     "Patch and unpatch macOS Electron and Native applications with custom fonts",
+			Description: "better-fonts is a modular CLI tool for patching and unpatching macOS applications (Electron apps like Paseo, Signal, Slack, and Native apps like Rekordbox, Engine DJ, Telegram, or any arbitrary .app bundle) with custom fonts.",
+			Metadata: map[string]string{
+				"author":  "Alex Gorbatchev",
+				"license": "MIT",
+			},
+		},
+		"better-fonts patch": {
+			Summary:     "Patch applications to use the configured font",
+			Description: "Modifies applications to use your chosen font by patching preload scripts in Electron apps or injecting CoreText dynamic libraries in native apps.",
+			Args: []cobrahelptree.ArgSpec{
+				{
+					Name:        "[apps...]",
+					Description: "Application name(s), bundle ID(s), or .app bundle paths to patch. If omitted, all configured apps are patched.",
+				},
+			},
+			AutoBackup: true,
+			Metadata: map[string]string{
+				"driver":     "electron|native-hook",
+				"restart":    "true|false",
+				"reversible": "true",
+			},
+		},
+		"better-fonts unpatch": {
+			Summary:     "Remove font patch from applications",
+			Description: "Restores original preload scripts or executables for applications, reverting them to their unpatched state.",
+			Args: []cobrahelptree.ArgSpec{
+				{
+					Name:        "[apps...]",
+					Description: "Application name(s), bundle ID(s), or .app bundle paths to unpatch. If omitted, all configured apps are unpatched.",
+				},
+			},
+			AutoBackup: true,
+			Metadata: map[string]string{
+				"driver":  "electron|native-hook",
+				"restart": "true|false",
+			},
+		},
+		"better-fonts status": {
+			Summary:     "Show installation and patch status of supported applications",
+			Description: "Displays a table showing driver, installation status, current patch state, and active font for each supported application.",
+		},
+		"better-fonts list": {
+			Summary:     "List all supported applications",
+			Description: "Prints a summary of all built-in and custom-configured applications along with their default installation paths and patching drivers.",
+		},
+		"better-fonts config": {
+			Summary:     "Manage better-fonts configuration",
+			Description: "Inspect, display, or initialize the user configuration file.",
+		},
+		"better-fonts config path": {
+			Summary:     "Print the path to config.toml",
+			Description: "Resolves and outputs the active configuration file path according to XDG base directory rules.",
+		},
+		"better-fonts config show": {
+			Summary:     "Display the current configuration file contents",
+			Description: "Outputs the complete contents of the active config.toml configuration file.",
+		},
+		"better-fonts config init": {
+			Summary:     "Create a default configuration file if not already present",
+			Description: "Generates an annotated default config.toml file at the XDG configuration path.",
+		},
+		"better-fonts upgrade": {
+			Summary:     "Check for and install the latest release of better-fonts",
+			Description: "Queries GitHub for newer releases and performs an in-place self-upgrade of the executable.",
+			Metadata: map[string]string{
+				"source": "github.com/alexgorbatchev/better-fonts-cli",
+			},
+		},
+	}
 }
 
 func loadAppConfig(flags *GlobalFlags) (*config.Config, error) {

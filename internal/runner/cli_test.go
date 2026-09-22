@@ -322,3 +322,61 @@ func TestDetectAppDriver(t *testing.T) {
 		t.Fatalf("expected auto-detected native-hook, got %s", d)
 	}
 }
+
+func TestCobraHelpTreeIntegration(t *testing.T) {
+	// 1. Human help (AGENT=0) should render tree glyphs and hide completion command
+	t.Setenv("AGENT", "0")
+	cmd := NewRootCommand("dev")
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs([]string{"--help"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute --help failed: %v", err)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "├─") && !strings.Contains(out, "╰─") {
+		t.Fatalf("expected tree glyphs in help output, got:\n%s", out)
+	}
+	if strings.Contains(out, "completion") {
+		t.Fatalf("expected completion command to be hidden, got:\n%s", out)
+	}
+
+	// 2. Subcommand help should document positional arguments from TechCatalog
+	cmd = NewRootCommand("dev")
+	buf.Reset()
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs([]string{"patch", "--help"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute patch --help failed: %v", err)
+	}
+
+	patchOut := buf.String()
+	if !strings.Contains(patchOut, "Arguments:") || !strings.Contains(patchOut, "[apps...]") {
+		t.Fatalf("expected Arguments section with [apps...] in patch --help, got:\n%s", patchOut)
+	}
+
+	// 3. Agent mode (AGENT=1)
+	t.Setenv("AGENT", "1")
+	cmd = NewRootCommand("dev")
+	buf.Reset()
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs([]string{"--help"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute --help in agent mode failed: %v", err)
+	}
+
+	agentOut := buf.String()
+	if strings.Contains(agentOut, "├─") || strings.Contains(agentOut, "╰─") {
+		t.Fatalf("expected no tree glyphs in agent mode, got:\n%s", agentOut)
+	}
+	if !strings.Contains(agentOut, "commands:") {
+		t.Fatalf("expected agent mode structured output with 'commands:', got:\n%s", agentOut)
+	}
+}
