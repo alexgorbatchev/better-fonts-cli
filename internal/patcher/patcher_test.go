@@ -22,6 +22,21 @@ func TestBuildInjectionSnippet(t *testing.T) {
 	}
 }
 
+func TestBuildFontCSS_IconExclusion(t *testing.T) {
+	fontName := "Maple Mono Normal NF"
+	css := BuildFontCSS(fontName)
+
+	if !strings.Contains(css, `[data-cds*="Icon"]`) {
+		t.Fatalf("expected CSS to exclude [data-cds*=\"Icon\"], got: %s", css)
+	}
+	if !strings.Contains(css, `Anthropicons-Variable`) {
+		t.Fatalf("expected CSS to preserve Anthropicons-Variable, got: %s", css)
+	}
+	if !strings.Contains(css, fontName) {
+		t.Fatalf("expected CSS to contain font %q, got: %s", fontName, css)
+	}
+}
+
 func TestInjectAndStripPatch(t *testing.T) {
 	originalPreload := []byte(`
 const electron = require('electron');

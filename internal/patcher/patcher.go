@@ -7,9 +7,13 @@ import (
 	"strings"
 )
 
-// BuildFontCSS returns the CSS rule applying the font family.
+// BuildFontCSS returns the CSS rules applying the font family while preserving font icons.
 func BuildFontCSS(fontName string) string {
-	return fmt.Sprintf(`* { font-family: "%s", monospace !important; }`, fontName)
+	return fmt.Sprintf(
+		`*:not([data-cds*="Icon"]):not([data-cds*="Icon"] *):not([class*="icon" i]):not([class*="Icon"]):not([data-icon]):not(i):not(svg):not(svg *) { font-family: "%s", monospace !important; } `+
+			`[data-cds*="Icon"], [data-cds*="Icon"] * { font-family: var(--font-anthropicons, Anthropicons-Variable), sans-serif !important; }`,
+		fontName,
+	)
 }
 
 // BuildInjectionSnippet creates the self-executing JS function with CSS injection.
@@ -17,6 +21,7 @@ func BuildInjectionSnippet(marker string, fontName string) string {
 	fontCSS := BuildFontCSS(fontName)
 	escapedCSS := strings.ReplaceAll(fontCSS, `\`, `\\`)
 	escapedCSS = strings.ReplaceAll(escapedCSS, `'`, `\'`)
+	escapedCSS = strings.ReplaceAll(escapedCSS, "\n", `\n`)
 
 	return fmt.Sprintf(
 		"\n;/*%s*/(function(){document.addEventListener(\"DOMContentLoaded\",function(){var s=document.createElement(\"style\");s.textContent='%s';document.head.appendChild(s)})})();\n",
