@@ -21,6 +21,16 @@ var (
 	ErrBinaryNotFound   = errors.New("electron framework binary not found")
 )
 
+func hasSentinel(binaryPath string) bool {
+	f, err := os.Open(binaryPath)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	_, err = findSentinelOffset(f)
+	return err == nil
+}
+
 // FindElectronFrameworkBinary resolves the path to the Electron Framework Mach-O binary.
 func FindElectronFrameworkBinary(appPath string) (string, error) {
 	candidates := []string{
@@ -35,16 +45,33 @@ func FindElectronFrameworkBinary(appPath string) (string, error) {
 		}
 	}
 
-	// Try finding any binary inside Frameworks matching Electron Framework
+	// Try finding any binary inside Frameworks matching Electron Framework.
+	// When multiple frameworks exist, prioritize candidates containing the Electron fuse sentinel.
 	frameworksDir := filepath.Join(appPath, "Contents", "Frameworks")
 	if entries, err := os.ReadDir(frameworksDir); err == nil {
+		var firstFound string
 		for _, entry := range entries {
 			if entry.IsDir() && filepath.Ext(entry.Name()) == ".framework" {
-				candidate := filepath.Join(frameworksDir, entry.Name(), filepath.Base(entry.Name()[:len(entry.Name())-len(".framework")]))
-				if fi, err := os.Stat(candidate); err == nil && !fi.IsDir() {
-					return candidate, nil
+				baseName := entry.Name()[:len(entry.Name())-len(".framework")]
+				subCandidates := []string{
+					filepath.Join(frameworksDir, entry.Name(), baseName),
+					filepath.Join(frameworksDir, entry.Name(), "Versions", "Current", baseName),
+					filepath.Join(frameworksDir, entry.Name(), "Versions", "A", baseName),
+				}
+				for _, cand := range subCandidates {
+					if fi, err := os.Stat(cand); err == nil && !fi.IsDir() {
+						if hasSentinel(cand) {
+							return cand, nil
+						}
+						if firstFound == "" {
+							firstFound = cand
+						}
+					}
 				}
 			}
+		}
+		if firstFound != "" {
+			return firstFound, nil
 		}
 	}
 

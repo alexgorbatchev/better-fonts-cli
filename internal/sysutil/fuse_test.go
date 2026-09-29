@@ -255,3 +255,57 @@ func TestFuse_EdgeCases(t *testing.T) {
 		t.Fatalf("expected error from errorReaderAt in findSentinelOffset")
 	}
 }
+
+func TestFindElectronFrameworkBinary_RenamedAndMultipleFrameworks(t *testing.T) {
+	tempDir := t.TempDir()
+	frameworksDir := filepath.Join(tempDir, "Contents", "Frameworks")
+
+	// 1. Framework alphabetically earlier, without sentinel (e.g., AlphaHelper.framework or Sparkle.framework)
+	alphaFw := filepath.Join(frameworksDir, "AlphaHelper.framework")
+	_ = os.MkdirAll(alphaFw, 0o755)
+	_ = os.WriteFile(filepath.Join(alphaFw, "AlphaHelper"), []byte("non-electron helper binary"), 0o755)
+
+	// 2. Renamed Electron framework (e.g., Codex Framework.framework) with sentinel
+	codexFw := filepath.Join(frameworksDir, "Codex Framework.framework")
+	_ = os.MkdirAll(codexFw, 0o755)
+	var codexBin bytes.Buffer
+	codexBin.Write(make([]byte, 1024))
+	codexBin.WriteString(FuseSentinel)
+	codexBin.WriteByte(1)
+	codexBin.WriteByte(8)
+	codexBin.Write([]byte{'0', '1', '0', '0', '1', '1', '0', '1'})
+	codexBin.Write(make([]byte, 512))
+	expectedBinPath := filepath.Join(codexFw, "Codex Framework")
+	if err := os.WriteFile(expectedBinPath, codexBin.Bytes(), 0o755); err != nil {
+		t.Fatalf("write codex bin: %v", err)
+	}
+
+	foundPath, err := FindElectronFrameworkBinary(tempDir)
+	if err != nil {
+		t.Fatalf("FindElectronFrameworkBinary failed: %v", err)
+	}
+	if foundPath != expectedBinPath {
+		t.Fatalf("expected to find %s, got %s", expectedBinPath, foundPath)
+	}
+
+	// Verify fuse can be checked and disabled on this renamed framework
+	disabled, err := IsAsarIntegrityDisabled(tempDir)
+	if err != nil {
+		t.Fatalf("IsAsarIntegrityDisabled failed: %v", err)
+	}
+	if disabled {
+		t.Fatalf("expected initial state to be enabled (disabled=false)")
+	}
+
+	if err := DisableIntegrityValidationNative(tempDir); err != nil {
+		t.Fatalf("DisableIntegrityValidationNative failed: %v", err)
+	}
+
+	disabledAfter, err := IsAsarIntegrityDisabled(tempDir)
+	if err != nil {
+		t.Fatalf("IsAsarIntegrityDisabled after disable failed: %v", err)
+	}
+	if !disabledAfter {
+		t.Fatalf("expected state to be disabled (disabled=true)")
+	}
+}

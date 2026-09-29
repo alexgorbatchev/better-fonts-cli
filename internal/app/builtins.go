@@ -22,6 +22,38 @@ func resolveRekordboxPath() string {
 	return candidates[0]
 }
 
+// resolveChatGPTPath locates the installed ChatGPT app bundle.
+func resolveChatGPTPath() string {
+	candidates := []string{
+		"/Applications/ChatGPT.app",
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		candidates = append(candidates, filepath.Join(home, "Applications", "ChatGPT.app"))
+	}
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+	}
+	return candidates[0]
+}
+
+// resolveClaudePath locates the installed Claude app bundle.
+func resolveClaudePath() string {
+	candidates := []string{
+		"/Applications/Claude.app",
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		candidates = append(candidates, filepath.Join(home, "Applications", "Claude.app"))
+	}
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+	}
+	return candidates[0]
+}
+
 // GetBuiltinApps returns the list of standard supported Electron and Native applications.
 func GetBuiltinApps() []App {
 	return []App{
@@ -106,6 +138,34 @@ func GetBuiltinApps() []App {
 			AppPath:       "/Applications/Telegram.app",
 			ProcessName:   "Telegram",
 			Driver:        DriverNativeHook,
+			NeedsCodesign: true,
+		},
+		{
+			ID:             "chatgpt",
+			Name:           "ChatGPT",
+			AppPath:        resolveChatGPTPath(),
+			ProcessName:    "ChatGPT",
+			Driver:         DriverElectron,
+			PatchMarker:    "fonted-chatgpt-patch",
+			PreloadRelPath: ".vite/build/preload.js",
+			ResolveAsarPath: func(appPath string) (string, error) {
+				return filepath.Join(appPath, "Contents", "Resources", "app.asar"), nil
+			},
+			DisableFuses:  true,
+			NeedsCodesign: true,
+		},
+		{
+			ID:             "claude",
+			Name:           "Claude",
+			AppPath:        resolveClaudePath(),
+			ProcessName:    "Claude",
+			Driver:         DriverElectron,
+			PatchMarker:    "fonted-claude-patch",
+			PreloadRelPath: ".vite/build/mainView.js",
+			ResolveAsarPath: func(appPath string) (string, error) {
+				return filepath.Join(appPath, "Contents", "Resources", "app.asar"), nil
+			},
+			DisableFuses:  true,
 			NeedsCodesign: true,
 		},
 	}

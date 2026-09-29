@@ -47,7 +47,7 @@ func NewRootCommand(version string) *cobra.Command {
 		Use:   "better-fonts",
 		Short: "Patch and unpatch macOS Electron and Native applications with custom fonts",
 		Long: `better-fonts is a modular CLI tool for patching and unpatching macOS applications
-(Electron apps like Paseo, Signal, Slack, and Native apps like Rekordbox, Engine DJ, Telegram,
+(Electron apps like Paseo, Signal, Slack, ChatGPT, Claude, and Native apps like Rekordbox, Engine DJ, Telegram,
 or any arbitrary .app bundle) with custom fonts.`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -99,7 +99,7 @@ func BuildTechCatalog() cobrahelptree.TechCatalog {
 	return cobrahelptree.TechCatalog{
 		"better-fonts": {
 			Summary:     "Patch and unpatch macOS Electron and Native applications with custom fonts",
-			Description: "better-fonts is a modular CLI tool for patching and unpatching macOS applications (Electron apps like Paseo, Signal, Slack, and Native apps like Rekordbox, Engine DJ, Telegram, or any arbitrary .app bundle) with custom fonts.",
+			Description: "better-fonts is a modular CLI tool for patching and unpatching macOS applications (Electron apps like Paseo, Signal, Slack, ChatGPT, Claude, and Native apps like Rekordbox, Engine DJ, Telegram, or any arbitrary .app bundle) with custom fonts.",
 			Metadata: map[string]string{
 				"author":  "Alex Gorbatchev",
 				"license": "MIT",

@@ -25,6 +25,8 @@
 | **Paseo** | `electron` | `/Applications/Paseo.app` | Preload CSS (`dist/preload.js`) | — |
 | **Signal** | `electron` | `/Applications/Signal.app` | Preload CSS (`preload.bundle.js`) | — |
 | **Slack** | `electron` | `/Applications/Slack.app` | Preload CSS (`dist/preload.bundle.js`) | `4.52.162` |
+| **ChatGPT** | `electron` | `/Applications/ChatGPT.app` | Preload CSS (`.vite/build/preload.js`) | `26.928.20755` |
+| **Claude** | `electron` | `/Applications/Claude.app` | Preload CSS (`.vite/build/mainView.js`) | `2.9939.4` |
 | **Rekordbox** | `native-hook` | `/Applications/rekordbox 7/rekordbox.app` | CoreText Interposition | — |
 | **Engine DJ** | `native-hook` | `/Applications/Engine DJ.app` | CoreText Interposition | — |
 | **Telegram** | `native-hook` | `/Applications/Telegram.app` | CoreText Interposition | — |
@@ -35,7 +37,7 @@
 
 For everyday users, `better-fonts` makes font customization on macOS effortless and reversible:
 
-1. **Detects the App Type**: Identifies whether the target application is built using web technology (like Slack, Signal, or Paseo) or as a native desktop program (like Rekordbox, Engine DJ, or Telegram).
+1. **Detects the App Type**: Identifies whether the target application is built using web technology (like Slack, Signal, Paseo, ChatGPT, or Claude) or as a native desktop program (like Rekordbox, Engine DJ, or Telegram).
 2. **Injects Your Chosen Font**: Seamlessly instructs the application to render its text using your preferred font instead of the hardcoded system default.
 3. **Safe and Reversible**: Makes changes in an isolated temporary staging area with automatic backups, allowing you to switch fonts at any time or restore the factory original with a single `better-fonts unpatch` command.
 
@@ -61,7 +63,7 @@ For developers and technical users, `better-fonts` operates via two distinct eng
 - **Built-in macOS System Tools** (pre-installed on every single Mac out of the box with zero setup required): [`codesign`](https://keith.github.io/xcode-man-pages/codesign.1.html), [`osascript`](https://keith.github.io/xcode-man-pages/osascript.1.html), [`open`](https://keith.github.io/xcode-man-pages/open.1.html), and [`plutil`](https://keith.github.io/xcode-man-pages/plutil.1.html)
 - **[Xcode Command Line Tools](https://developer.apple.com/xcode/resources/) (`clang`)** — *only required when patching Native apps like Rekordbox, Engine DJ, or Telegram* (install with `xcode-select --install`)
 
-*Note: For Electron applications (Slack, Signal, Paseo), `better-fonts` is completely self-contained with a native ASAR parser and native Electron fuse manipulator in Go. It works immediately out of the box with zero external dependencies—Node.js, Bun, and npm are **not** required.*
+*Note: For Electron applications (Slack, Signal, Paseo, ChatGPT, Claude), `better-fonts` is completely self-contained with a native ASAR parser and native Electron fuse manipulator in Go. It works immediately out of the box with zero external dependencies—Node.js, Bun, and npm are **not** required.*
 
 ## Installation
 
@@ -100,6 +102,8 @@ APP         DRIVER        INSTALLED   PATCHED   CURRENT FONT           PATH
 Paseo       electron      Yes         Yes       Maple Mono Normal NF   /Applications/Paseo.app
 Signal      electron      Yes         Yes       SF Mono                /Applications/Signal.app
 Slack       electron      Yes         Yes       Maple Mono Normal NF   /Applications/Slack.app
+ChatGPT     electron      Yes         Yes       Maple Mono Normal NF   /Applications/ChatGPT.app
+Claude      electron      Yes         Yes       Maple Mono Normal NF   /Applications/Claude.app
 Rekordbox   native-hook   Yes         Yes       Maple Mono Normal NF   /Applications/rekordbox 7/rekordbox.app
 Engine DJ   native-hook   Yes         Yes       Maple Mono Normal NF   /Applications/Engine DJ.app
 Telegram    native-hook   Yes         No        -                      /Applications/Telegram.app

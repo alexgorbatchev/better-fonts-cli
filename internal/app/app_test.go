@@ -57,7 +57,7 @@ func createFakeAppBundle(t *testing.T, baseDir, appName, asarName, preloadRelPat
 
 	files := map[string][]byte{
 		preloadRelPath: preloadContent,
-		"index.js":      []byte("console.log('app index');"),
+		"index.js":     []byte("console.log('app index');"),
 	}
 	arch, err := asar.CreateArchive(files)
 	if err != nil {
@@ -91,7 +91,7 @@ func TestBuiltinsRegistry(t *testing.T) {
 		}
 	}
 
-	for _, expectedID := range []string{"paseo", "signal", "slack", "rekordbox", "engine-dj", "telegram"} {
+	for _, expectedID := range []string{"paseo", "signal", "slack", "rekordbox", "engine-dj", "telegram", "chatgpt", "claude"} {
 		if !ids[expectedID] {
 			t.Errorf("missing expected builtin app %q", expectedID)
 		}
@@ -101,6 +101,164 @@ func TestBuiltinsRegistry(t *testing.T) {
 	rPath := resolveRekordboxPath()
 	if rPath == "" {
 		t.Fatalf("resolveRekordboxPath returned empty string")
+	}
+}
+
+func TestClaudeAppSupport(t *testing.T) {
+	tempDir := t.TempDir()
+	originalPreload := []byte("console.log('claude preload');\n")
+	appPath := createFakeAppBundle(t, tempDir, "Claude", "app.asar", ".vite/build/mainView.js", originalPreload)
+
+	var claudeBuiltin *App
+	for _, a := range GetBuiltinApps() {
+		if a.ID == "claude" {
+			appCopy := a
+			claudeBuiltin = &appCopy
+			break
+		}
+	}
+	if claudeBuiltin == nil {
+		t.Fatalf("claude builtin not found in GetBuiltinApps()")
+	}
+
+	if claudeBuiltin.Driver != DriverElectron {
+		t.Fatalf("expected claude driver to be %s, got %s", DriverElectron, claudeBuiltin.Driver)
+	}
+	if claudeBuiltin.PreloadRelPath != ".vite/build/mainView.js" {
+		t.Fatalf("expected PreloadRelPath to be .vite/build/mainView.js, got %s", claudeBuiltin.PreloadRelPath)
+	}
+
+	// Test ResolveAsarPath
+	resolvedAsar, err := claudeBuiltin.ResolveAsarPath(appPath)
+	if err != nil {
+		t.Fatalf("ResolveAsarPath failed: %v", err)
+	}
+	expectedAsar := filepath.Join(appPath, "Contents", "Resources", "app.asar")
+	if resolvedAsar != expectedAsar {
+		t.Fatalf("expected asar path %s, got %s", expectedAsar, resolvedAsar)
+	}
+
+	// Test Patch and Unpatch using Claude's configuration
+	claudeApp := *claudeBuiltin
+	claudeApp.AppPath = appPath
+
+	opts := PatchOptions{
+		Font:        "Maple Mono Normal NF",
+		Restart:     false,
+		DryRun:      false,
+		Runner:      &mockRunner{},
+		TempBaseDir: filepath.Join(tempDir, "work"),
+	}
+
+	// Initial status
+	st := claudeApp.Status()
+	if !st.Installed {
+		t.Fatalf("expected Claude fake app to be installed")
+	}
+	if st.Patched {
+		t.Fatalf("expected Claude fake app to not be patched initially")
+	}
+
+	// Patch
+	if err := claudeApp.Patch(opts); err != nil {
+		t.Fatalf("Patch Claude app failed: %v", err)
+	}
+
+	st = claudeApp.Status()
+	if !st.Patched {
+		t.Fatalf("expected Claude fake app to be patched after Patch()")
+	}
+	if st.CurrentFont != "Maple Mono Normal NF" {
+		t.Fatalf("expected font to be %q, got %q", "Maple Mono Normal NF", st.CurrentFont)
+	}
+
+	// Unpatch
+	if err := claudeApp.Unpatch(opts); err != nil {
+		t.Fatalf("Unpatch Claude app failed: %v", err)
+	}
+
+	st = claudeApp.Status()
+	if st.Patched {
+		t.Fatalf("expected Claude fake app to not be patched after Unpatch()")
+	}
+}
+
+func TestChatGPTAppSupport(t *testing.T) {
+	tempDir := t.TempDir()
+	originalPreload := []byte("console.log('chatgpt preload');\n")
+	appPath := createFakeAppBundle(t, tempDir, "ChatGPT", "app.asar", ".vite/build/preload.js", originalPreload)
+
+	var chatgptBuiltin *App
+	for _, a := range GetBuiltinApps() {
+		if a.ID == "chatgpt" {
+			appCopy := a
+			chatgptBuiltin = &appCopy
+			break
+		}
+	}
+	if chatgptBuiltin == nil {
+		t.Fatalf("chatgpt builtin not found in GetBuiltinApps()")
+	}
+
+	if chatgptBuiltin.Driver != DriverElectron {
+		t.Fatalf("expected chatgpt driver to be %s, got %s", DriverElectron, chatgptBuiltin.Driver)
+	}
+	if chatgptBuiltin.PreloadRelPath != ".vite/build/preload.js" {
+		t.Fatalf("expected PreloadRelPath to be .vite/build/preload.js, got %s", chatgptBuiltin.PreloadRelPath)
+	}
+
+	// Test ResolveAsarPath
+	resolvedAsar, err := chatgptBuiltin.ResolveAsarPath(appPath)
+	if err != nil {
+		t.Fatalf("ResolveAsarPath failed: %v", err)
+	}
+	expectedAsar := filepath.Join(appPath, "Contents", "Resources", "app.asar")
+	if resolvedAsar != expectedAsar {
+		t.Fatalf("expected asar path %s, got %s", expectedAsar, resolvedAsar)
+	}
+
+	// Test Patch and Unpatch using ChatGPT's configuration
+	chatgptApp := *chatgptBuiltin
+	chatgptApp.AppPath = appPath
+
+	opts := PatchOptions{
+		Font:        "Maple Mono Normal NF",
+		Restart:     false,
+		DryRun:      false,
+		Runner:      &mockRunner{},
+		TempBaseDir: filepath.Join(tempDir, "work"),
+	}
+
+	// Initial status
+	st := chatgptApp.Status()
+	if !st.Installed {
+		t.Fatalf("expected ChatGPT fake app to be installed")
+	}
+	if st.Patched {
+		t.Fatalf("expected ChatGPT fake app to not be patched initially")
+	}
+
+	// Patch
+	if err := chatgptApp.Patch(opts); err != nil {
+		t.Fatalf("Patch ChatGPT app failed: %v", err)
+	}
+
+	st = chatgptApp.Status()
+	if !st.Patched {
+		t.Fatalf("expected ChatGPT fake app to be patched after Patch()")
+	}
+	if st.CurrentFont != "Maple Mono Normal NF" {
+		t.Fatalf("expected font to be %q, got %q", "Maple Mono Normal NF", st.CurrentFont)
+	}
+
+	// Unpatch
+	if err := chatgptApp.Unpatch(opts); err != nil {
+		t.Fatalf("Unpatch ChatGPT app failed: %v", err)
+	}
+
+	st = chatgptApp.Status()
+	if st.Patched {
+		t.Fatalf("expected ChatGPT fake app to not be patched after Unpatch()")
 	}
 }
 
