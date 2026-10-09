@@ -116,6 +116,12 @@ func CopyDir(src, dst string) error {
 				return fmt.Errorf("reading symlink %s: %w", srcPath, err)
 			}
 			if err := os.Symlink(target, dstPath); err != nil {
+				if errors.Is(err, os.ErrExist) {
+					// An identical link already represents the requested copy, even if dangling.
+					if existing, readErr := os.Readlink(dstPath); readErr == nil && existing == target {
+						continue
+					}
+				}
 				return fmt.Errorf("creating symlink %s: %w", dstPath, err)
 			}
 			continue

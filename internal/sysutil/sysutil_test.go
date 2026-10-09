@@ -103,6 +103,65 @@ func TestCopyDirAndFile(t *testing.T) {
 	}
 }
 
+func TestCopyDirWithExistingSymlink(t *testing.T) {
+	const target = "../@oai/cua-repl/bin/cua-repl.mjs"
+	tests := []struct {
+		name           string
+		targetExists   bool
+		existingTarget string
+		wantErr        bool
+	}{
+		{name: "valid", targetExists: true, existingTarget: target},
+		{name: "dangling", existingTarget: target},
+		{name: "conflicting", existingTarget: "../other.mjs", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			src := t.TempDir()
+			dst := t.TempDir()
+			for _, dir := range []string{src, dst} {
+				binDir := filepath.Join(dir, ".bin")
+				if err := os.Mkdir(binDir, 0o755); err != nil {
+					t.Fatal(err)
+				}
+				linkTarget := target
+				if dir == dst {
+					linkTarget = tt.existingTarget
+				}
+				if err := os.Symlink(linkTarget, filepath.Join(binDir, "cua-repl")); err != nil {
+					t.Fatal(err)
+				}
+				if tt.targetExists {
+					path := filepath.Join(binDir, target)
+					if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.WriteFile(path, []byte("original"), 0o755); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			const fileName = "z-file.txt"
+			if err := os.WriteFile(filepath.Join(src, fileName), []byte("new content"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if err := CopyDir(src, dst); (err != nil) != tt.wantErr {
+				t.Fatalf("copying over cua-repl symlink: %v; want error %v", err, tt.wantErr)
+			}
+			got, err := os.Readlink(filepath.Join(dst, ".bin", "cua-repl"))
+			if err != nil || got != tt.existingTarget {
+				t.Fatalf("copied symlink = %q, %v; want %q", got, err, tt.existingTarget)
+			}
+			if !tt.wantErr {
+				content, err := os.ReadFile(filepath.Join(dst, fileName))
+				if err != nil || string(content) != "new content" {
+					t.Fatalf("copy stopped at existing symlink: content = %q, err = %v", content, err)
+				}
+			}
+		})
+	}
+}
+
 func TestCodesignAndFusesWithMock(t *testing.T) {
 	runner := &mockRunner{}
 

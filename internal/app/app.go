@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -240,8 +241,15 @@ func (a *App) applyTransformation(opts PatchOptions, transform func([]byte) ([]b
 	}
 
 	if err := sysutil.CopyDir(workAppPath, a.AppPath); err != nil {
-		_ = os.Rename(backupPath, a.AppPath)
-		return fmt.Errorf("copying patched app to %s: %w", a.AppPath, err)
+		copyErr := fmt.Errorf("copying patched app to %s: %w", a.AppPath, err)
+		// Rename cannot restore the backup over a partially copied, nonempty bundle.
+		if err := os.RemoveAll(a.AppPath); err != nil {
+			return errors.Join(copyErr, fmt.Errorf("removing partial app %s (original preserved at %s): %w", a.AppPath, backupPath, err))
+		}
+		if err := os.Rename(backupPath, a.AppPath); err != nil {
+			return errors.Join(copyErr, fmt.Errorf("restoring original app from %s: %w", backupPath, err))
+		}
+		return copyErr
 	}
 	_ = os.RemoveAll(backupPath)
 

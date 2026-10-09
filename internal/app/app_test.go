@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"errors"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -187,6 +188,23 @@ func TestChatGPTAppSupport(t *testing.T) {
 	tempDir := t.TempDir()
 	originalPreload := []byte("console.log('chatgpt preload');\n")
 	appPath := createFakeAppBundle(t, tempDir, "ChatGPT", "app.asar", ".vite/build/preload.js", originalPreload)
+	modulesDir := filepath.Join(appPath, "Contents", "Resources", "cua_node", "lib", "node_modules")
+	binDir := filepath.Join(modulesDir, ".bin")
+	const linkTarget = "../@oai/cua-repl/bin/cua-repl.mjs"
+	targetPath := filepath.Join(binDir, linkTarget)
+	for _, dir := range []string{binDir, filepath.Dir(targetPath)} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	const replContent = "console.log('cua-repl');"
+	if err := os.WriteFile(targetPath, []byte(replContent), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	linkPath := filepath.Join(binDir, "cua-repl")
+	if err := os.Symlink(linkTarget, linkPath); err != nil {
+		t.Fatal(err)
+	}
 
 	var chatgptBuiltin *App
 	for _, a := range GetBuiltinApps() {
@@ -259,6 +277,12 @@ func TestChatGPTAppSupport(t *testing.T) {
 	st = chatgptApp.Status()
 	if st.Patched {
 		t.Fatalf("expected ChatGPT fake app to not be patched after Unpatch()")
+	}
+	if got, err := os.Readlink(linkPath); err != nil || got != linkTarget {
+		t.Fatalf("cua-repl symlink after patch/unpatch = %q, %v; want %q", got, err, linkTarget)
+	}
+	if got, err := os.ReadFile(linkPath); err != nil || string(got) != replContent {
+		t.Fatalf("cua-repl content after patch/unpatch = %q, %v", got, err)
 	}
 }
 
@@ -414,6 +438,57 @@ func TestAppPatchAndUnpatchElectron(t *testing.T) {
 	opts.TempBaseDir = ""
 	if err := testApp.Patch(opts); err != nil {
 		t.Fatalf("Patch with empty TempBaseDir failed: %v", err)
+	}
+}
+
+func TestCopyRollback(t *testing.T) {
+	tempDir := t.TempDir()
+	const preloadPath = "preload.js"
+	appPath := createFakeAppBundle(t, tempDir, "Test", "app.asar", preloadPath, []byte("original"))
+	const originalFile = "original.txt"
+	if err := os.WriteFile(filepath.Join(appPath, originalFile), []byte("original bundle"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	app := App{
+		ID: "rollback", Name: "Test", AppPath: appPath,
+		PreloadRelPath: preloadPath,
+		ResolveAsarPath: func(p string) (string, error) {
+			return filepath.Join(p, "Contents", "Resources", "app.asar"), nil
+		},
+	}
+	opts := PatchOptions{Runner: &mockRunner{}, TempBaseDir: filepath.Join(tempDir, "work")}
+	socketPath := filepath.Join(t.TempDir(), "s")
+	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: socketPath, Net: "unix"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	listener.SetUnlinkOnClose(false)
+	t.Cleanup(func() {
+		if err := listener.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	err = app.applyTransformation(opts, func(preload []byte) ([]byte, error) {
+		workApp := filepath.Join(opts.TempBaseDir, app.ID+"-work", filepath.Base(appPath))
+		// A socket cannot be copied as a regular file; sort it after the bundle contents.
+		if err := os.Rename(socketPath, filepath.Join(workApp, "z-socket")); err != nil {
+			return nil, err
+		}
+		if err := os.WriteFile(filepath.Join(workApp, originalFile), []byte("modified bundle"), 0o644); err != nil {
+			return nil, err
+		}
+		return preload, nil
+	})
+	if err == nil || !strings.Contains(err.Error(), "copying patched app") {
+		t.Fatalf("expected installation copy failure, got %v", err)
+	}
+	got, err := os.ReadFile(filepath.Join(appPath, originalFile))
+	if err != nil || string(got) != "original bundle" {
+		t.Fatalf("rollback left partial bundle: content = %q, err = %v", got, err)
+	}
+	backups, err := filepath.Glob(appPath + ".backup-*")
+	if err != nil || len(backups) != 0 {
+		t.Fatalf("rollback left backups: %v, err = %v", backups, err)
 	}
 }
 
