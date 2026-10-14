@@ -316,7 +316,7 @@ arbitrary macOS application path (e.g. 'better-fonts patch /Applications/SomeApp
 				restart := cfg.EffectiveRestart(target.ID)
 
 				if target.Driver == app.DriverNativeHook {
-					fmt.Fprintf(cmd.OutOrStdout(), "⚠️  Patching %s [%s] (%s) with font %q (Native CoreText hook)...\n", target.Name, target.Driver, target.AppPath, font)
+					fmt.Fprintf(cmd.OutOrStdout(), "Patching %s [%s] (%s) with font %q (Native CoreText hook)...\n", target.Name, target.Driver, target.AppPath, font)
 				} else {
 					fmt.Fprintf(cmd.OutOrStdout(), "Patching %s [%s] (%s) with font %q...\n", target.Name, target.Driver, target.AppPath, font)
 				}

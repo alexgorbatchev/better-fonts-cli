@@ -217,6 +217,37 @@ func TestPatchWithCustomAppPath(t *testing.T) {
 	_ = cmd.Execute()
 }
 
+func TestPatchProgressOutput(t *testing.T) {
+	for _, mode := range []string{"0", "1"} {
+		t.Run(mode, func(t *testing.T) {
+			t.Setenv("AGENT", mode)
+			dir := t.TempDir()
+			appPath := filepath.Join(dir, "Example.app")
+			macosDir := filepath.Join(appPath, "Contents", "MacOS")
+			if err := os.MkdirAll(macosDir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(macosDir, "Example"), []byte("executable"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			cmd := NewRootCommand("dev")
+			var out, stderr bytes.Buffer
+			cmd.SetOut(&out)
+			cmd.SetErr(&stderr)
+			cmd.SetArgs([]string{"patch", "--config", filepath.Join(dir, "config.toml"), "--dry-run", "--driver", "native-hook", appPath})
+			if err := cmd.Execute(); err != nil {
+				t.Fatal(err)
+			}
+			if stderr.Len() != 0 {
+				t.Fatalf("unexpected stderr: %s", &stderr)
+			}
+			if !strings.HasPrefix(out.String(), "Patching Example [native-hook]") {
+				t.Fatalf("unexpected progress output: %q", out.String())
+			}
+		})
+	}
+}
+
 func TestConfigSubcommands(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", tempDir)
