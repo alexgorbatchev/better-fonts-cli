@@ -11,6 +11,7 @@ import (
 
 	"github.com/alexgorbatchev/better-fonts/internal/asar"
 	"github.com/alexgorbatchev/better-fonts/internal/config"
+	"github.com/alexgorbatchev/better-fonts/internal/driver/native"
 	"github.com/alexgorbatchev/better-fonts/internal/sysutil"
 )
 
@@ -188,6 +189,11 @@ func TestChatGPTAppSupport(t *testing.T) {
 	tempDir := t.TempDir()
 	originalPreload := []byte("console.log('chatgpt preload');\n")
 	appPath := createFakeAppBundle(t, tempDir, "ChatGPT", "app.asar", ".vite/build/preload.js", originalPreload)
+	asarPath := filepath.Join(appPath, "Contents", "Resources", "app.asar")
+	originalAsar, err := os.ReadFile(asarPath)
+	if err != nil {
+		t.Fatal(err)
+	}
 	modulesDir := filepath.Join(appPath, "Contents", "Resources", "cua_node", "lib", "node_modules")
 	binDir := filepath.Join(modulesDir, ".bin")
 	const linkTarget = "../@oai/cua-repl/bin/cua-repl.mjs"
@@ -218,23 +224,6 @@ func TestChatGPTAppSupport(t *testing.T) {
 		t.Fatalf("chatgpt builtin not found in GetBuiltinApps()")
 	}
 
-	if chatgptBuiltin.Driver != DriverElectron {
-		t.Fatalf("expected chatgpt driver to be %s, got %s", DriverElectron, chatgptBuiltin.Driver)
-	}
-	if chatgptBuiltin.PreloadRelPath != ".vite/build/preload.js" {
-		t.Fatalf("expected PreloadRelPath to be .vite/build/preload.js, got %s", chatgptBuiltin.PreloadRelPath)
-	}
-
-	// Test ResolveAsarPath
-	resolvedAsar, err := chatgptBuiltin.ResolveAsarPath(appPath)
-	if err != nil {
-		t.Fatalf("ResolveAsarPath failed: %v", err)
-	}
-	expectedAsar := filepath.Join(appPath, "Contents", "Resources", "app.asar")
-	if resolvedAsar != expectedAsar {
-		t.Fatalf("expected asar path %s, got %s", expectedAsar, resolvedAsar)
-	}
-
 	// Test Patch and Unpatch using ChatGPT's configuration
 	chatgptApp := *chatgptBuiltin
 	chatgptApp.AppPath = appPath
@@ -245,6 +234,20 @@ func TestChatGPTAppSupport(t *testing.T) {
 		DryRun:      false,
 		Runner:      &mockRunner{},
 		TempBaseDir: filepath.Join(tempDir, "work"),
+	}
+
+	macosDir := filepath.Join(appPath, "Contents", "MacOS")
+	if err := os.MkdirAll(macosDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	binaryPath := filepath.Join(macosDir, "ChatGPT")
+	originalBinary := []byte("original executable")
+	if err := os.WriteFile(binaryPath, originalBinary, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	chatgptApp.BinaryName = "ChatGPT"
+	if _, _, err := native.BuildArtifacts(opts.Font, opts.TempBaseDir, sysutil.DefaultRunner); err != nil {
+		t.Fatal(err)
 	}
 
 	// Initial status
@@ -269,6 +272,13 @@ func TestChatGPTAppSupport(t *testing.T) {
 		t.Fatalf("expected font to be %q, got %q", "Maple Mono Normal NF", st.CurrentFont)
 	}
 
+	if got, err := os.ReadFile(binaryPath + ".orig"); err != nil || !bytes.Equal(got, originalBinary) {
+		t.Fatalf("original executable backup = %q, %v", got, err)
+	}
+	if got, err := os.ReadFile(asarPath); err != nil || !bytes.Equal(got, originalAsar) {
+		t.Fatalf("native patch changed the ASAR archive: %v", err)
+	}
+
 	// Unpatch
 	if err := chatgptApp.Unpatch(opts); err != nil {
 		t.Fatalf("Unpatch ChatGPT app failed: %v", err)
@@ -277,6 +287,9 @@ func TestChatGPTAppSupport(t *testing.T) {
 	st = chatgptApp.Status()
 	if st.Patched {
 		t.Fatalf("expected ChatGPT fake app to not be patched after Unpatch()")
+	}
+	if got, err := os.ReadFile(binaryPath); err != nil || !bytes.Equal(got, originalBinary) {
+		t.Fatalf("restored executable = %q, %v", got, err)
 	}
 	if got, err := os.Readlink(linkPath); err != nil || got != linkTarget {
 		t.Fatalf("cua-repl symlink after patch/unpatch = %q, %v; want %q", got, err, linkTarget)

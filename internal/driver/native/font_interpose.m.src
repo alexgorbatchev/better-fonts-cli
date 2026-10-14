@@ -145,3 +145,22 @@ static CTFontRef my_CTFontCreateWithFontDescriptor(CTFontDescriptorRef descripto
 
 DYLD_INTERPOSE(my_CTFontCreateWithName, CTFontCreateWithName);
 DYLD_INTERPOSE(my_CTFontCreateWithFontDescriptor, CTFontCreateWithFontDescriptor);
+
+// Chromium requests system-ui fonts directly through this API rather than by name.
+static CTFontRef my_CTFontCreateUIFontForLanguage(CTFontUIFontType type, CGFloat size, CFStringRef language) {
+    CTFontRef original = CTFontCreateUIFontForLanguage(type, size, language);
+    if (original == NULL) {
+        return NULL;
+    }
+
+    // Copying the family preserves the resolved default size and symbolic traits.
+    CTFontRef replacement = CTFontCreateCopyWithFamily(original, 0, NULL,
+        (__bridge CFStringRef)get_configured_font());
+    if (replacement == NULL) {
+        return original;
+    }
+    CFRelease(original);
+    return replacement;
+}
+
+DYLD_INTERPOSE(my_CTFontCreateUIFontForLanguage, CTFontCreateUIFontForLanguage);

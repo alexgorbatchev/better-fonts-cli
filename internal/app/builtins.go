@@ -141,17 +141,11 @@ func GetBuiltinApps() []App {
 			NeedsCodesign: true,
 		},
 		{
-			ID:             "chatgpt",
-			Name:           "ChatGPT",
-			AppPath:        resolveChatGPTPath(),
-			ProcessName:    "ChatGPT",
-			Driver:         DriverElectron,
-			PatchMarker:    "fonted-chatgpt-patch",
-			PreloadRelPath: ".vite/build/preload.js",
-			ResolveAsarPath: func(appPath string) (string, error) {
-				return filepath.Join(appPath, "Contents", "Resources", "app.asar"), nil
-			},
-			DisableFuses:  true,
+			ID:            "chatgpt",
+			Name:          "ChatGPT",
+			AppPath:       resolveChatGPTPath(),
+			ProcessName:   "ChatGPT",
+			Driver:        DriverNativeHook,
 			NeedsCodesign: true,
 		},
 		{

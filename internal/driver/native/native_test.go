@@ -3,11 +3,56 @@ package native
 import (
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
 	"github.com/alexgorbatchev/better-fonts/internal/sysutil"
 )
+
+func TestSystemUIFontInterposition(t *testing.T) {
+	dir := t.TempDir()
+	dylib, _, err := BuildArtifacts("Courier", dir, sysutil.DefaultRunner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := `#include <CoreText/CoreText.h>
+#include <stdio.h>
+int main(void) {
+    CTFontUIFontType types[] = { kCTFontUIFontSystem, kCTFontUIFontEmphasizedSystem };
+    CGFloat sizes[] = { 0, 17, 28 };
+    for (int t = 0; t < 2; t++) {
+        for (int s = 0; s < 3; s++) {
+            CTFontRef font = CTFontCreateUIFontForLanguage(types[t], sizes[s], CFSTR("en"));
+            if (!font) return 1;
+            CFStringRef family = CTFontCopyFamilyName(font);
+            if (!CFEqual(family, CFSTR("Courier"))) {
+                CFShow(family);
+                return 2;
+            }
+            if (CTFontGetSize(font) <= 0 || (sizes[s] && CTFontGetSize(font) != sizes[s])) return 3;
+            if (t == 1 && !(CTFontGetSymbolicTraits(font) & kCTFontBoldTrait)) return 4;
+            CFRelease(family);
+            CFRelease(font);
+        }
+    }
+    return 0;
+}`
+	src := filepath.Join(dir, "font_probe.c")
+	if err := os.WriteFile(src, []byte(source), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	probe := filepath.Join(dir, "font_probe")
+	cmd := exec.Command("clang", "-framework", "CoreText", "-framework", "CoreFoundation", "-o", probe, src)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("compile font probe: %v\n%s", err, out)
+	}
+	cmd = exec.Command(probe)
+	cmd.Env = append(os.Environ(), "DYLD_INSERT_LIBRARIES="+dylib, "BETTER_FONTS_NAME=", "BETTER_FONTS_DEBUG=0")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("system font replacement: %v\n%s", err, out)
+	}
+}
 
 type mockRunner struct {
 	commands  [][]string
