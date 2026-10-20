@@ -13,7 +13,7 @@ install:
 
 # Run better-fonts CLI with arguments
 run *ARGS:
-    go run ./cmd/better-fonts {{ARGS}}
+    go run ./cmd/better-fonts {{ ARGS }}
 
 # Run all unit tests with race detector
 test:
@@ -35,3 +35,7 @@ vet:
 # Clean build artifacts and temporary files
 clean:
     rm -rf bin/ .tmp/ coverage.out
+
+# Download project dependencies for local development
+setup:
+    go mod download
