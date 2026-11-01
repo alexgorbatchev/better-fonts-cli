@@ -12,7 +12,7 @@ import (
 	"github.com/alexgorbatchev/better-fonts/internal/config"
 	"github.com/alexgorbatchev/better-fonts/internal/selfupdate"
 	"github.com/alexgorbatchev/better-fonts/internal/sysutil"
-	cobrahelptree "github.com/alexgorbatchev/cobra-help-tree/v2"
+	cobrahelptree "github.com/alexgorbatchev/cobra-help-tree/v4"
 	"github.com/spf13/cobra"
 )
 
