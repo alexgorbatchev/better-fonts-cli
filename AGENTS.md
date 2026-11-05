@@ -1,6 +1,6 @@
 ---
 created_on: 2026-08-23 07:30
-last_modified: 2026-08-23 07:45
+last_modified: 2026-11-04 23:08
 status: current
 ---
 
@@ -17,7 +17,8 @@ Go CLI tool for modular patching and unpatching of macOS Electron and Native app
 - **Run Linter / Static Analysis:** `just lint` (`go mod tidy -diff` && `go vet ./...`)
 - **Run Vet:** `just vet` (`go vet ./...`)
 - **Format Code:** `just fmt` (`go fmt ./...`)
-- **Clean Artifacts:** `just clean` (`rm -rf bin/ .tmp/ coverage.out`)
+- **Run All Checks:** `just check` (`just lint`, then `just test`)
+- **Clean Artifacts:** `just clean` (`rm -rf bin/ coverage.out`); session-owned `.tmp/` directories are preserved.
 
 ## Setup & Environment
 - **Prerequisites:** Go 1.26+, macOS, `clang` (for native CoreText dylib compilation), and `just`.
