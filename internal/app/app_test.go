@@ -343,6 +343,7 @@ func TestSlackAsarResolution(t *testing.T) {
 }
 
 func TestAppPatchAndUnpatchElectron(t *testing.T) {
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 	tempDir := t.TempDir()
 	originalPreload := []byte("console.log('original preload');\n")
 	appPath := createFakeAppBundle(t, tempDir, "TestApp", "app.asar", "preload.bundle.js", originalPreload)
@@ -470,8 +471,11 @@ func TestCopyRollback(t *testing.T) {
 		},
 	}
 	opts := PatchOptions{Runner: &mockRunner{}, TempBaseDir: filepath.Join(tempDir, "work")}
-	socketPath := filepath.Join(t.TempDir(), "s")
-	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: socketPath, Net: "unix"})
+	socketDir := t.TempDir()
+	t.Chdir(socketDir)
+	socketPath := filepath.Join(socketDir, "s")
+	// Bind a relative path so deep TMPDIR values fit the Unix socket limit.
+	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: "s", Net: "unix"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -506,6 +510,8 @@ func TestCopyRollback(t *testing.T) {
 }
 
 func TestAppPatchAndUnpatchNative(t *testing.T) {
+	cacheHome := t.TempDir()
+	t.Setenv("XDG_CACHE_HOME", cacheHome)
 	tempDir := t.TempDir()
 	appPath := filepath.Join(tempDir, "SampleNative.app")
 	macosDir := filepath.Join(appPath, "Contents", "MacOS")
@@ -553,6 +559,10 @@ func TestAppPatchAndUnpatchNative(t *testing.T) {
 	if err := testApp.Patch(opts); err != nil {
 		t.Fatalf("Patch native with empty TempBaseDir failed: %v", err)
 	}
+	builds, err := os.ReadDir(filepath.Join(cacheHome, "better-fonts", "build"))
+	if err != nil || len(builds) == 0 {
+		t.Fatalf("native patch did not use the test-owned cache: %v, %v", builds, err)
+	}
 
 	st = testApp.Status()
 	if !st.Patched {
@@ -579,6 +589,7 @@ func TestAppPatchAndUnpatchNative(t *testing.T) {
 }
 
 func TestAppStatus_ErrorCases(t *testing.T) {
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 	tempDir := t.TempDir()
 
 	// 1. Missing app path

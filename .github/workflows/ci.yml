@@ -23,11 +23,26 @@ jobs:
       - name: Check module hygiene
         run: go mod tidy -diff
 
+      - uses: extractions/setup-just@v4
+
       - name: Build
         run: go build ./...
 
       - name: Vet
         run: go vet ./...
 
-      - name: Test
-        run: go test -race ./...
+      - name: Test and verify the user cache is unchanged
+        run: |
+          cache_root="${XDG_CACHE_HOME:-$HOME/Library/Caches}/better-fonts"
+          snapshot_cache() {
+            if [ -e "$cache_root" ]; then
+              find "$cache_root" -ls
+            fi
+          }
+          before="$(snapshot_cache)"
+          just test
+          after="$(snapshot_cache)"
+          if [ "$before" != "$after" ]; then
+            echo 'Tests modified the user font cache' >&2
+            exit 1
+          fi

@@ -32,9 +32,12 @@ lint:
 vet:
     go vet ./...
 
-# Clean build artifacts and temporary files
+# Run all local checks
+check: lint test
+
+# Clean build outputs while preserving session-owned scratch
 clean:
-    rm -rf bin/ .tmp/ coverage.out
+    rm -rf bin/ coverage.out
 
 # Download project dependencies for local development
 setup:
