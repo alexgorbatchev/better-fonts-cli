@@ -1,5 +1,7 @@
 #import <CoreText/CoreText.h>
 #import <Foundation/Foundation.h>
+#import <WebKit/WebKit.h>
+#import <objc/runtime.h>
 #import <stdio.h>
 #import <unistd.h>
 #import <stdlib.h>
@@ -34,17 +36,82 @@ static void log_msg(const char *format, ...) {
     }
 }
 
-__attribute__((constructor))
-static void init_fonthook() {
-    log_msg("--- better-fonts Native CoreText Interposition Hook Loaded ---");
-}
-
 static NSString *get_configured_font() {
     const char *envFont = getenv("BETTER_FONTS_NAME");
     if (envFont && strlen(envFont) > 0) {
         return [NSString stringWithUTF8String:envFont];
     }
     return [NSString stringWithUTF8String:TARGET_FONT_NAME];
+}
+
+// WKWebView text renders in WebKit's out-of-process WebContent helper, which the
+// CoreText interposition never reaches. Inject a stylesheet into each web view instead.
+static const void *kBetterFontsUserScriptKey = &kBetterFontsUserScriptKey;
+
+static NSString *webkit_font_script() {
+    NSString *font = get_configured_font();
+    NSString *cssFont = [[font stringByReplacingOccurrencesOfString:@"\\" withString:@"\\\\"]
+        stringByReplacingOccurrencesOfString:@"\"" withString:@"\\\""];
+    NSString *css = [NSString stringWithFormat:
+        @"*:not(i):not(svg):not(svg *):not([class*=\"icon\" i]):not([data-icon]) "
+        @"{ font-family: \"%@\", monospace !important; }", cssFont];
+
+    // JSON-encode the stylesheet so the font name cannot break out of the script literal.
+    NSData *json = [NSJSONSerialization dataWithJSONObject:@[css] options:0 error:NULL];
+    if (json == nil) {
+        return nil;
+    }
+    NSString *cssArray = [[[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding] autorelease];
+
+    // Constructed stylesheets are CSSOM changes, so page CSP style-src rules do not block them.
+    return [NSString stringWithFormat:
+        @"(function(){var css=%@[0];"
+        @"try{var s=new CSSStyleSheet();s.replaceSync(css);"
+        @"document.adoptedStyleSheets=document.adoptedStyleSheets.concat([s]);}"
+        @"catch(e){var el=document.createElement('style');el.textContent=css;"
+        @"(document.head||document.documentElement).appendChild(el);}})();", cssArray];
+}
+
+static void install_webkit_font_script(WKWebViewConfiguration *configuration) {
+    WKUserContentController *controller = configuration.userContentController;
+    if (controller == nil || objc_getAssociatedObject(controller, kBetterFontsUserScriptKey) != nil) {
+        return;
+    }
+    NSString *source = webkit_font_script();
+    if (source == nil) {
+        return;
+    }
+    WKUserScript *script = [[[WKUserScript alloc] initWithSource:source
+        injectionTime:WKUserScriptInjectionTimeAtDocumentStart
+        forMainFrameOnly:NO] autorelease];
+    [controller addUserScript:script];
+    objc_setAssociatedObject(controller, kBetterFontsUserScriptKey, script, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    log_msg("Injected WebKit font stylesheet into WKUserContentController %p", controller);
+}
+
+static void hook_webkit() {
+    SEL selector = @selector(initWithFrame:configuration:);
+    Method method = class_getInstanceMethod([WKWebView class], selector);
+    if (method == NULL) {
+        return;
+    }
+    typedef id (*WebViewInitFn)(id, SEL, CGRect, WKWebViewConfiguration *);
+    WebViewInitFn original = (WebViewInitFn)method_getImplementation(method);
+    IMP replacement = imp_implementationWithBlock(^id(id webView, CGRect frame, WKWebViewConfiguration *configuration) {
+        if (configuration != nil) {
+            install_webkit_font_script(configuration);
+        }
+        return original(webView, selector, frame, configuration);
+    });
+    method_setImplementation(method, replacement);
+}
+
+__attribute__((constructor))
+static void init_fonthook() {
+    @autoreleasepool {
+        hook_webkit();
+    }
+    log_msg("--- better-fonts Native CoreText Interposition Hook Loaded ---");
 }
 
 // Check if a font family name is one of our targets to override

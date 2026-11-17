@@ -54,6 +54,52 @@ int main(void) {
 	}
 }
 
+func TestWebKitFontStylesheetInjection(t *testing.T) {
+	dir := t.TempDir()
+	dylib, _, err := BuildArtifacts("Courier", dir, sysutil.DefaultRunner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The probe runs the injected user script against a stub DOM to prove the
+	// stylesheet survives a font name containing quotes and backslashes intact.
+	source := `#import <WebKit/WebKit.h>
+#import <JavaScriptCore/JavaScriptCore.h>
+int main(void) {
+    @autoreleasepool {
+        WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
+        WKWebView *first = [[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 10, 10) configuration:config];
+        WKWebView *second = [[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 10, 10) configuration:config];
+        if (!first || !second) return 1;
+        NSArray<WKUserScript *> *scripts = config.userContentController.userScripts;
+        if (scripts.count != 1) { printf("scripts=%lu\n", (unsigned long)scripts.count); return 2; }
+        WKUserScript *script = scripts[0];
+        if (script.injectionTime != WKUserScriptInjectionTimeAtDocumentStart || script.isForMainFrameOnly) return 3;
+        JSContext *ctx = [[JSContext alloc] init];
+        [ctx evaluateScript:@"var document={adoptedStyleSheets:[]};function CSSStyleSheet(){this.replaceSync=function(c){this.css=c;};}"];
+        [ctx evaluateScript:script.source];
+        if (ctx.exception) { printf("exception=%s\n", [[ctx.exception toString] UTF8String]); return 4; }
+        NSString *css = [[ctx evaluateScript:@"document.adoptedStyleSheets[0].css"] toString];
+        NSString *expected = @"font-family: \"Evil\\\"Font\\\\</script>\", monospace !important;";
+        if (![css containsString:expected]) { printf("css=%s\n", [css UTF8String]); return 5; }
+    }
+    return 0;
+}`
+	src := filepath.Join(dir, "webkit_probe.m")
+	if err := os.WriteFile(src, []byte(source), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	probe := filepath.Join(dir, "webkit_probe")
+	cmd := exec.Command("clang", "-fobjc-arc", "-framework", "WebKit", "-framework", "JavaScriptCore", "-framework", "Foundation", "-o", probe, src)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("compile webkit probe: %v\n%s", err, out)
+	}
+	cmd = exec.Command(probe)
+	cmd.Env = append(os.Environ(), "DYLD_INSERT_LIBRARIES="+dylib, `BETTER_FONTS_NAME=Evil"Font\</script>`, "BETTER_FONTS_DEBUG=0")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("webkit stylesheet injection: %v\n%s", err, out)
+	}
+}
+
 type mockRunner struct {
 	commands  [][]string
 	failNext  bool

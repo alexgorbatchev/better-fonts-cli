@@ -56,6 +56,7 @@ func BuildArtifacts(targetFont string, baseCacheDir string, r sysutil.Runner) (s
 		"-dynamiclib",
 		"-framework", "CoreText",
 		"-framework", "Foundation",
+		"-framework", "WebKit",
 		fontDefine,
 		"-o", dylibPath,
 		interposeSrcPath,
