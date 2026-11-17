@@ -26,6 +26,7 @@
 | **Signal** | `electron` | `/Applications/Signal.app` | Preload CSS (`preload.bundle.js`) | — |
 | **Slack** | `electron` | `/Applications/Slack.app` | Preload CSS (`dist/preload.bundle.js`) | `4.52.162` |
 | **ChatGPT** | `native-hook` | `/Applications/ChatGPT.app` | CoreText Interposition | — |
+| **Amp** | `native-hook` | `/Applications/Amp.app` | WebKit Stylesheet Injection | `1.0` |
 | **Claude** | `electron` | `/Applications/Claude.app` | Preload CSS (`.vite/build/mainView.js`) | `2.9939.4` |
 | **Rekordbox** | `native-hook` | `/Applications/rekordbox 7/rekordbox.app` | CoreText Interposition | — |
 | **Engine DJ** | `native-hook` | `/Applications/Engine DJ.app` | CoreText Interposition | — |
@@ -37,7 +38,7 @@
 
 For everyday users, `better-fonts` makes font customization on macOS effortless and reversible:
 
-1. **Selects the Patching Driver**: Uses Electron preload patching for Slack, Signal, Paseo, and Claude, and the native CoreText hook for ChatGPT, Rekordbox, Engine DJ, and Telegram.
+1. **Selects the Patching Driver**: Uses Electron preload patching for Slack, Signal, Paseo, and Claude, and the native CoreText hook for ChatGPT, Amp, Rekordbox, Engine DJ, and Telegram.
 2. **Injects Your Chosen Font**: Seamlessly instructs the application to render its text using your preferred font instead of the hardcoded system default.
 3. **Safe and Reversible**: Makes changes in an isolated temporary staging area with automatic backups, allowing you to switch fonts at any time or restore the factory original with a single `better-fonts unpatch` command.
 
@@ -54,15 +55,15 @@ For developers and technical users, `better-fonts` operates via two distinct eng
 ### 2. Native CoreText Hook Strategy (`native-hook`)
 
 - **CoreText Interposition (`DYLD_INTERPOSE`)**: Dynamically compiles an Objective-C library (`libfonthook.dylib`) using `clang` that interposes low-level macOS `CoreText` creation routines (`CTFontCreateWithName` and `CTFontCreateWithFontDescriptor`). When the target app requests fonts, the hook redirects the request to your configured font (with automatic variant mapping for Bold, Heavy, and Semibold weights) while explicitly passing through Apple private system fonts (prefixed with `.`) and symbol/emoji icon sets.
-- **Launcher Binary Substitution**: Renames the original Mach-O executable to `<binary>.orig` and substitutes a compiled C wrapper launcher (`wrapper_launcher`). When executed by macOS, the launcher discovers its directory via `_NSGetExecutablePath`, sets `DYLD_INSERT_LIBRARIES=libfonthook.dylib`, and calls `execv` on the original binary, passing through all process arguments and environment variables.
 - **WebKit Stylesheet Injection**: Text inside `WKWebView` renders in WebKit's out-of-process `WebContent` helper, which CoreText interposition cannot reach. The same library therefore hooks `-[WKWebView initWithFrame:configuration:]` and adds a document-start user script to every frame that adopts a constructed stylesheet setting your font (`* { font-family: "<font>", monospace !important; }`, skipping SVG and icon elements). Constructed stylesheets are not blocked by page CSP `style-src` rules. This covers web-based native shells such as Amp.
+- **Launcher Binary Substitution**: Renames the original Mach-O executable to `<binary>.orig` and substitutes a compiled C wrapper launcher (`wrapper_launcher`). When executed by macOS, the launcher discovers its directory via `_NSGetExecutablePath`, sets `DYLD_INSERT_LIBRARIES=libfonthook.dylib`, and calls `execv` on the original binary, passing through all process arguments and environment variables.
 - **Bundle Re-Signing**: Re-signs the modified `.app` bundle with `codesign --force --deep --sign -`.
 
 ## Prerequisites
 
 - **macOS** (Apple Silicon or Intel)
 - **Built-in macOS System Tools** (pre-installed on every single Mac out of the box with zero setup required): [`codesign`](https://keith.github.io/xcode-man-pages/codesign.1.html), [`osascript`](https://keith.github.io/xcode-man-pages/osascript.1.html), [`open`](https://keith.github.io/xcode-man-pages/open.1.html), and [`plutil`](https://keith.github.io/xcode-man-pages/plutil.1.html)
-- **[Xcode Command Line Tools](https://developer.apple.com/xcode/resources/) (`clang`)** — *required when using the native hook for ChatGPT, Rekordbox, Engine DJ, or Telegram* (install with `xcode-select --install`)
+- **[Xcode Command Line Tools](https://developer.apple.com/xcode/resources/) (`clang`)** — *required when using the native hook for ChatGPT, Amp, Rekordbox, Engine DJ, or Telegram* (install with `xcode-select --install`)
 
 *Note: For Electron applications (Slack, Signal, Paseo, Claude), `better-fonts` is completely self-contained with a native ASAR parser and native Electron fuse manipulator in Go. It works immediately out of the box with zero external dependencies—Node.js, Bun, and npm are **not** required.*
 

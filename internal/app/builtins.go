@@ -7,51 +7,32 @@ import (
 	"runtime"
 )
 
+// firstExistingPath returns the first candidate that exists, or the first candidate when none do.
+func firstExistingPath(candidates []string) string {
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+	}
+	return candidates[0]
+}
+
 // resolveRekordboxPath locates the installed Rekordbox app bundle.
 func resolveRekordboxPath() string {
-	candidates := []string{
+	return firstExistingPath([]string{
 		"/Applications/rekordbox 7/rekordbox.app",
 		"/Applications/rekordbox 6/rekordbox.app",
 		"/Applications/rekordbox.app",
-	}
-	for _, candidate := range candidates {
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate
-		}
-	}
-	return candidates[0]
+	})
 }
 
-// resolveChatGPTPath locates the installed ChatGPT app bundle.
-func resolveChatGPTPath() string {
-	candidates := []string{
-		"/Applications/ChatGPT.app",
-	}
+// resolveApplicationsPath locates an app bundle in /Applications, falling back to ~/Applications.
+func resolveApplicationsPath(bundleName string) string {
+	candidates := []string{filepath.Join("/Applications", bundleName)}
 	if home, err := os.UserHomeDir(); err == nil {
-		candidates = append(candidates, filepath.Join(home, "Applications", "ChatGPT.app"))
+		candidates = append(candidates, filepath.Join(home, "Applications", bundleName))
 	}
-	for _, candidate := range candidates {
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate
-		}
-	}
-	return candidates[0]
-}
-
-// resolveClaudePath locates the installed Claude app bundle.
-func resolveClaudePath() string {
-	candidates := []string{
-		"/Applications/Claude.app",
-	}
-	if home, err := os.UserHomeDir(); err == nil {
-		candidates = append(candidates, filepath.Join(home, "Applications", "Claude.app"))
-	}
-	for _, candidate := range candidates {
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate
-		}
-	}
-	return candidates[0]
+	return firstExistingPath(candidates)
 }
 
 // GetBuiltinApps returns the list of standard supported Electron and Native applications.
@@ -143,15 +124,23 @@ func GetBuiltinApps() []App {
 		{
 			ID:            "chatgpt",
 			Name:          "ChatGPT",
-			AppPath:       resolveChatGPTPath(),
+			AppPath:       resolveApplicationsPath("ChatGPT.app"),
 			ProcessName:   "ChatGPT",
+			Driver:        DriverNativeHook,
+			NeedsCodesign: true,
+		},
+		{
+			ID:            "amp",
+			Name:          "Amp",
+			AppPath:       resolveApplicationsPath("Amp.app"),
+			ProcessName:   "Amp",
 			Driver:        DriverNativeHook,
 			NeedsCodesign: true,
 		},
 		{
 			ID:             "claude",
 			Name:           "Claude",
-			AppPath:        resolveClaudePath(),
+			AppPath:        resolveApplicationsPath("Claude.app"),
 			ProcessName:    "Claude",
 			Driver:         DriverElectron,
 			PatchMarker:    "fonted-claude-patch",

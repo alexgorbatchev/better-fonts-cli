@@ -93,7 +93,7 @@ func TestBuiltinsRegistry(t *testing.T) {
 		}
 	}
 
-	for _, expectedID := range []string{"paseo", "signal", "slack", "rekordbox", "engine-dj", "telegram", "chatgpt", "claude"} {
+	for _, expectedID := range []string{"paseo", "signal", "slack", "rekordbox", "engine-dj", "telegram", "chatgpt", "amp", "claude"} {
 		if !ids[expectedID] {
 			t.Errorf("missing expected builtin app %q", expectedID)
 		}
@@ -103,6 +103,43 @@ func TestBuiltinsRegistry(t *testing.T) {
 	rPath := resolveRekordboxPath()
 	if rPath == "" {
 		t.Fatalf("resolveRekordboxPath returned empty string")
+	}
+}
+
+func TestAmpBuiltinUsesNativeHook(t *testing.T) {
+	for _, a := range GetBuiltinApps() {
+		if a.ID != "amp" {
+			continue
+		}
+		if a.Driver != DriverNativeHook {
+			t.Fatalf("expected amp driver %s, got %s", DriverNativeHook, a.Driver)
+		}
+		if a.ProcessName != "Amp" || a.Name != "Amp" {
+			t.Fatalf("unexpected amp identity: name=%q process=%q", a.Name, a.ProcessName)
+		}
+		if filepath.Base(a.AppPath) != "Amp.app" {
+			t.Fatalf("expected amp path to end in Amp.app, got %s", a.AppPath)
+		}
+		return
+	}
+	t.Fatalf("amp builtin not found in GetBuiltinApps()")
+}
+
+func TestResolveApplicationsPath(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	bundleName := "BetterFontsResolverFixture.app"
+
+	if got, want := resolveApplicationsPath(bundleName), filepath.Join("/Applications", bundleName); got != want {
+		t.Fatalf("expected fallback to %s when no bundle exists, got %s", want, got)
+	}
+
+	userBundle := filepath.Join(home, "Applications", bundleName)
+	if err := os.MkdirAll(userBundle, 0o755); err != nil {
+		t.Fatalf("creating user bundle fixture: %v", err)
+	}
+	if got := resolveApplicationsPath(bundleName); got != userBundle {
+		t.Fatalf("expected user Applications bundle %s, got %s", userBundle, got)
 	}
 }
 
