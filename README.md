@@ -27,7 +27,7 @@
 | **Slack** | `electron` | `/Applications/Slack.app` | Preload CSS (`dist/preload.bundle.js`) | `4.52.162` |
 | **ChatGPT** | `native-hook` | `/Applications/ChatGPT.app` | CoreText Interposition | — |
 | **Amp** | `native-hook` | `/Applications/Amp.app` | WebKit Stylesheet Injection | `1.0` |
-| **Orca** | `electron` | `/Applications/Orca.app` | Preload CSS (`out/preload/index.js`) | — |
+| **Orca** | `electron` | `/Applications/Orca.app` | Preload CSS (`out/preload/index.js`) | `1.4.263` |
 | **Claude** | `electron` | `/Applications/Claude.app` | Preload CSS (`.vite/build/mainView.js`) | `2.9939.4` |
 | **Rekordbox** | `native-hook` | `/Applications/rekordbox 7/rekordbox.app` | CoreText Interposition | — |
 | **Engine DJ** | `native-hook` | `/Applications/Engine DJ.app` | CoreText Interposition | — |
