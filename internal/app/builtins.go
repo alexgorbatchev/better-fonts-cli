@@ -138,6 +138,14 @@ func GetBuiltinApps() []App {
 			NeedsCodesign: true,
 		},
 		{
+			ID:            "orca",
+			Name:          "Orca",
+			AppPath:       resolveApplicationsPath("Orca.app"),
+			ProcessName:   "Orca",
+			Driver:        DriverNativeHook,
+			NeedsCodesign: true,
+		},
+		{
 			ID:             "claude",
 			Name:           "Claude",
 			AppPath:        resolveApplicationsPath("Claude.app"),

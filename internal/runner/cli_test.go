@@ -38,7 +38,7 @@ func TestListCommand(t *testing.T) {
 	}
 
 	out := buf.String()
-	for _, appName := range []string{"Paseo", "Signal", "Slack", "Rekordbox", "Engine DJ", "Telegram", "ChatGPT", "Amp", "Claude"} {
+	for _, appName := range []string{"Paseo", "Signal", "Slack", "Rekordbox", "Engine DJ", "Telegram", "ChatGPT", "Amp", "Orca", "Claude"} {
 		if !strings.Contains(out, appName) {
 			t.Errorf("list output missing app %q: %s", appName, out)
 		}

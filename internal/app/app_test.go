@@ -93,7 +93,7 @@ func TestBuiltinsRegistry(t *testing.T) {
 		}
 	}
 
-	for _, expectedID := range []string{"paseo", "signal", "slack", "rekordbox", "engine-dj", "telegram", "chatgpt", "amp", "claude"} {
+	for _, expectedID := range []string{"paseo", "signal", "slack", "rekordbox", "engine-dj", "telegram", "chatgpt", "amp", "orca", "claude"} {
 		if !ids[expectedID] {
 			t.Errorf("missing expected builtin app %q", expectedID)
 		}
@@ -106,23 +106,37 @@ func TestBuiltinsRegistry(t *testing.T) {
 	}
 }
 
-func TestAmpBuiltinUsesNativeHook(t *testing.T) {
-	for _, a := range GetBuiltinApps() {
-		if a.ID != "amp" {
-			continue
-		}
-		if a.Driver != DriverNativeHook {
-			t.Fatalf("expected amp driver %s, got %s", DriverNativeHook, a.Driver)
-		}
-		if a.ProcessName != "Amp" || a.Name != "Amp" {
-			t.Fatalf("unexpected amp identity: name=%q process=%q", a.Name, a.ProcessName)
-		}
-		if filepath.Base(a.AppPath) != "Amp.app" {
-			t.Fatalf("expected amp path to end in Amp.app, got %s", a.AppPath)
-		}
-		return
+func TestNativeHookBuiltins(t *testing.T) {
+	for _, tc := range []struct {
+		id     string
+		name   string
+		bundle string
+	}{
+		{id: "amp", name: "Amp", bundle: "Amp.app"},
+		{id: "orca", name: "Orca", bundle: "Orca.app"},
+	} {
+		t.Run(tc.id, func(t *testing.T) {
+			for _, a := range GetBuiltinApps() {
+				if a.ID != tc.id {
+					continue
+				}
+				if a.Driver != DriverNativeHook {
+					t.Fatalf("expected %s driver %s, got %s", tc.id, DriverNativeHook, a.Driver)
+				}
+				if a.ProcessName != tc.name || a.Name != tc.name {
+					t.Fatalf("unexpected %s identity: name=%q process=%q", tc.id, a.Name, a.ProcessName)
+				}
+				if filepath.Base(a.AppPath) != tc.bundle {
+					t.Fatalf("expected %s path to end in %s, got %s", tc.id, tc.bundle, a.AppPath)
+				}
+				if !a.NeedsCodesign {
+					t.Fatalf("expected %s to require codesigning", tc.id)
+				}
+				return
+			}
+			t.Fatalf("%s builtin not found in GetBuiltinApps()", tc.id)
+		})
 	}
-	t.Fatalf("amp builtin not found in GetBuiltinApps()")
 }
 
 func TestResolveApplicationsPath(t *testing.T) {
