@@ -138,11 +138,17 @@ func GetBuiltinApps() []App {
 			NeedsCodesign: true,
 		},
 		{
-			ID:            "orca",
-			Name:          "Orca",
-			AppPath:       resolveApplicationsPath("Orca.app"),
-			ProcessName:   "Orca",
-			Driver:        DriverNativeHook,
+			ID:             "orca",
+			Name:           "Orca",
+			AppPath:        resolveApplicationsPath("Orca.app"),
+			ProcessName:    "Orca",
+			Driver:         DriverElectron,
+			PatchMarker:    "fonted-orca-patch",
+			PreloadRelPath: "out/preload/index.js",
+			ResolveAsarPath: func(appPath string) (string, error) {
+				return filepath.Join(appPath, "Contents", "Resources", "app.asar"), nil
+			},
+			DisableFuses:  true,
 			NeedsCodesign: true,
 		},
 		{

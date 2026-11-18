@@ -113,7 +113,6 @@ func TestNativeHookBuiltins(t *testing.T) {
 		bundle string
 	}{
 		{id: "amp", name: "Amp", bundle: "Amp.app"},
-		{id: "orca", name: "Orca", bundle: "Orca.app"},
 	} {
 		t.Run(tc.id, func(t *testing.T) {
 			for _, a := range GetBuiltinApps() {
@@ -233,6 +232,66 @@ func TestClaudeAppSupport(t *testing.T) {
 	st = claudeApp.Status()
 	if st.Patched {
 		t.Fatalf("expected Claude fake app to not be patched after Unpatch()")
+	}
+}
+
+func TestOrcaAppSupport(t *testing.T) {
+	tempDir := t.TempDir()
+	originalPreload := []byte("console.log('orca preload');\n")
+	appPath := createFakeAppBundle(t, tempDir, "Orca", "app.asar", "out/preload/index.js", originalPreload)
+
+	var orcaBuiltin *App
+	for _, a := range GetBuiltinApps() {
+		if a.ID == "orca" {
+			appCopy := a
+			orcaBuiltin = &appCopy
+			break
+		}
+	}
+	if orcaBuiltin == nil {
+		t.Fatalf("orca builtin not found in GetBuiltinApps()")
+	}
+	if orcaBuiltin.Driver != DriverElectron {
+		t.Fatalf("expected orca driver %s, got %s", DriverElectron, orcaBuiltin.Driver)
+	}
+	if orcaBuiltin.ProcessName != "Orca" || filepath.Base(orcaBuiltin.AppPath) != "Orca.app" {
+		t.Fatalf("unexpected orca identity: process=%q path=%s", orcaBuiltin.ProcessName, orcaBuiltin.AppPath)
+	}
+	if !orcaBuiltin.DisableFuses || !orcaBuiltin.NeedsCodesign {
+		t.Fatalf("expected orca to disable fuses and codesign, got fuses=%v codesign=%v", orcaBuiltin.DisableFuses, orcaBuiltin.NeedsCodesign)
+	}
+
+	resolvedAsar, err := orcaBuiltin.ResolveAsarPath(appPath)
+	if err != nil {
+		t.Fatalf("ResolveAsarPath failed: %v", err)
+	}
+	if expected := filepath.Join(appPath, "Contents", "Resources", "app.asar"); resolvedAsar != expected {
+		t.Fatalf("expected asar path %s, got %s", expected, resolvedAsar)
+	}
+
+	orcaApp := *orcaBuiltin
+	orcaApp.AppPath = appPath
+	opts := PatchOptions{
+		Font:        "Maple Mono Normal NF",
+		Runner:      &mockRunner{},
+		TempBaseDir: filepath.Join(tempDir, "work"),
+	}
+
+	if st := orcaApp.Status(); !st.Installed || st.Patched {
+		t.Fatalf("expected unpatched installed Orca fixture, got installed=%v patched=%v", st.Installed, st.Patched)
+	}
+	if err := orcaApp.Patch(opts); err != nil {
+		t.Fatalf("Patch Orca app failed: %v", err)
+	}
+	st := orcaApp.Status()
+	if !st.Patched || st.CurrentFont != "Maple Mono Normal NF" {
+		t.Fatalf("expected Orca patched with Maple Mono Normal NF, got patched=%v font=%q", st.Patched, st.CurrentFont)
+	}
+	if err := orcaApp.Unpatch(opts); err != nil {
+		t.Fatalf("Unpatch Orca app failed: %v", err)
+	}
+	if st := orcaApp.Status(); st.Patched {
+		t.Fatalf("expected Orca fixture to be unpatched after Unpatch()")
 	}
 }
 
